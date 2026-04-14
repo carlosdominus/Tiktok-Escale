@@ -83,11 +83,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const loadInitialData = async () => {
       try {
         const [pkgRes, accRes] = await Promise.all([
-          fetch("/api/packages"),
-          fetch("/api/accounts")
+          window.fetch("/api/packages"),
+          window.fetch("/api/accounts")
         ]);
         const pkgData = await pkgRes.json();
         const accData = await accRes.json();
@@ -100,7 +100,7 @@ export default function App() {
         setLoading(false);
       }
     };
-    fetchData();
+    loadInitialData();
   }, []);
 
   const handleLogin = async () => {
@@ -136,7 +136,7 @@ export default function App() {
     try {
       const priceValue = parseFloat(pkg.price.replace(/[^\d,]/g, "").replace(",", "."));
       
-      const response = await fetch("/api/pix/generate", {
+      const response = await window.fetch("/api/pix/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -203,11 +203,13 @@ export default function App() {
                   <p className="text-[10px] text-slate-500">{user.email}</p>
                 </div>
                 <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" className="p-0 h-10 w-10 rounded-full overflow-hidden border border-slate-100">
-                      <img src={user.photoURL || ""} alt="User" className="w-full h-full object-cover" />
-                    </Button>
-                  </DialogTrigger>
+                  <DialogTrigger 
+                    render={
+                      <Button variant="ghost" className="p-0 h-10 w-10 rounded-full overflow-hidden border border-slate-100">
+                        <img src={user.photoURL || ""} alt="User" className="w-full h-full object-cover" />
+                      </Button>
+                    }
+                  />
                   <DialogContent className="sm:max-w-[300px] rounded-3xl">
                     <div className="flex flex-col items-center gap-4 py-4">
                       <img src={user.photoURL || ""} alt="User" className="w-20 h-20 rounded-full border-4 border-emerald-50" />

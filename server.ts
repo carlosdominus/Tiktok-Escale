@@ -45,15 +45,19 @@ async function startServer() {
         skip_empty_lines: true,
       });
       
+      if (!Array.isArray(records) || records.length === 0) {
+        return res.json([]);
+      }
+
       const packages = [];
       const headers = records[0] || [];
       for (let i = 1; i < headers.length; i++) {
         if (!headers[i]) continue;
         packages.push({
           name: headers[i],
-          profiles: records[1]?.[i] || "0",
-          accounts: records[2]?.[i] || "0",
-          price: records[3]?.[i] || "0",
+          profiles: records[1] && records[1][i] ? String(records[1][i]) : "0",
+          accounts: records[2] && records[2][i] ? String(records[2][i]) : "0",
+          price: records[3] && records[3][i] ? String(records[3][i]) : "0",
         });
       }
       

@@ -1,0 +1,583 @@
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { cn } from "@/lib/utils";
+import { 
+  ShoppingCart, 
+  ShieldCheck, 
+  Zap, 
+  CheckCircle2, 
+  Copy, 
+  QrCode, 
+  ArrowRight,
+  Package,
+  Users,
+  CreditCard,
+  ExternalLink,
+  LogOut,
+  User as UserIcon
+} from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast, Toaster } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import QRCode from "qrcode";
+import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, db, doc, setDoc, getDoc } from "./firebase";
+import { User } from "firebase/auth";
+
+interface PackageData {
+  name: string;
+  profiles: string;
+  accounts: string;
+  price: string;
+}
+
+interface AccountData {
+  "Email outlook": string;
+  "Senha": string;
+  "Senha tiktok": string;
+  "Status": string;
+}
+
+export default function App() {
+  const [packages, setPackages] = useState<PackageData[]>([]);
+  const [accounts, setAccounts] = useState<AccountData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPackage, setSelectedPackage] = useState<PackageData | null>(null);
+  const [pixData, setPixData] = useState<{ pixCode: string; qrCode: string } | null>(null);
+  const [isPixModalOpen, setIsPixModalOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+      
+      if (currentUser) {
+        // Sync user to Firestore
+        const userRef = doc(db, "users", currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
+          await setDoc(userRef, {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
+            role: "user",
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [pkgRes, accRes] = await Promise.all([
+          fetch("/api/packages"),
+          fetch("/api/accounts")
+        ]);
+        const pkgData = await pkgRes.json();
+        const accData = await accRes.json();
+        setPackages(Array.isArray(pkgData) ? pkgData : []);
+        setAccounts(Array.isArray(accData) ? accData : []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast.error("Erro ao carregar informações. Tente novamente.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast.success("Login realizado com sucesso!");
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error("Erro ao fazer login.");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast.success("Sessão encerrada.");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  const handleBuy = async (pkg: PackageData) => {
+    if (!user) {
+      toast.error("Você precisa estar logado para comprar.");
+      handleLogin();
+      return;
+    }
+
+    setSelectedPackage(pkg);
+    setPixData(null);
+    setIsPixModalOpen(true);
+
+    try {
+      const priceValue = parseFloat(pkg.price.replace(/[^\d,]/g, "").replace(",", "."));
+      
+      const response = await fetch("/api/pix/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          amount: priceValue, 
+          packageId: pkg.name,
+          customerEmail: user.email 
+        }),
+      });
+      
+      const data = await response.json();
+      
+      // If Abacate Pay returned a QR code URL directly, use it, otherwise generate from pixCode
+      let qrCodeUrl = data.qrCode;
+      if (!qrCodeUrl && data.pixCode) {
+        qrCodeUrl = await QRCode.toDataURL(data.pixCode);
+      }
+      
+      setPixData({
+        pixCode: data.pixCode,
+        qrCode: qrCodeUrl
+      });
+    } catch (error) {
+      console.error("Error generating PIX:", error);
+      toast.error("Erro ao gerar pagamento. Tente novamente.");
+    }
+  };
+
+  const copyPixCode = () => {
+    if (pixData?.pixCode) {
+      navigator.clipboard.writeText(pixData.pixCode);
+      toast.success("Código PIX copiado!");
+    }
+  };
+
+  const availableAccountsCount = accounts.filter(a => a.Status === "à venda").length;
+
+  return (
+    <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
+      <Toaster position="top-center" />
+      
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+              <Zap className="text-white w-6 h-6 fill-current" />
+            </div>
+            <span className="text-xl font-bold tracking-tight text-slate-800">Dominus<span className="text-emerald-500">Scale</span></span>
+          </div>
+          
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-500">
+            <a href="#produtos" className="hover:text-emerald-600 transition-colors">Produtos</a>
+            <a href="#seguranca" className="hover:text-emerald-600 transition-colors">Segurança</a>
+            <a href="#suporte" className="hover:text-emerald-600 transition-colors">Suporte</a>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {isAuthLoading ? (
+              <Skeleton className="h-10 w-24 rounded-full" />
+            ) : user ? (
+              <div className="flex items-center gap-3">
+                <div className="hidden sm:block text-right">
+                  <p className="text-xs font-bold text-slate-800">{user.displayName}</p>
+                  <p className="text-[10px] text-slate-500">{user.email}</p>
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" className="p-0 h-10 w-10 rounded-full overflow-hidden border border-slate-100">
+                      <img src={user.photoURL || ""} alt="User" className="w-full h-full object-cover" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[300px] rounded-3xl">
+                    <div className="flex flex-col items-center gap-4 py-4">
+                      <img src={user.photoURL || ""} alt="User" className="w-20 h-20 rounded-full border-4 border-emerald-50" />
+                      <div className="text-center">
+                        <p className="font-bold">{user.displayName}</p>
+                        <p className="text-sm text-slate-500">{user.email}</p>
+                      </div>
+                      <Button variant="destructive" className="w-full rounded-xl gap-2" onClick={handleLogout}>
+                        <LogOut className="w-4 h-4" /> Sair
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            ) : (
+              <Button onClick={handleLogin} className="rounded-full bg-slate-900 hover:bg-slate-800 text-white gap-2">
+                <UserIcon className="w-4 h-4" /> Entrar
+              </Button>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      <main>
+        {/* Hero Section */}
+        <section className="relative pt-20 pb-32 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 relative z-10">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="max-w-3xl"
+            >
+              <Badge variant="secondary" className="mb-6 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-none px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
+                Plataforma Premium de Contas
+              </Badge>
+              <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.1] mb-8">
+                Escala seu negócio com <span className="text-emerald-500">contas de elite.</span>
+              </h1>
+              <p className="text-xl text-slate-500 leading-relaxed mb-10 max-w-2xl">
+                Acesso instantâneo a perfis de alta qualidade para TikTok e Outlook. 
+                Entrega automática via PIX em menos de 30 segundos.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <a 
+                  href="#produtos" 
+                  className={cn(
+                    buttonVariants({ size: "lg" }), 
+                    "bg-emerald-500 hover:bg-emerald-600 text-white rounded-full px-8 h-14 text-lg shadow-xl shadow-emerald-200/50 group"
+                  )}
+                >
+                  Ver Pacotes <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </a>
+                <div className="flex items-center gap-4 px-4">
+                  <div className="flex -space-x-3">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-slate-100 overflow-hidden">
+                        <img src={`https://picsum.photos/seed/user${i}/100/100`} alt="User" referrerPolicy="no-referrer" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-sm">
+                    <p className="font-bold text-slate-800">+2.500 clientes</p>
+                    <p className="text-slate-500">confiam na Dominus</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+          
+          {/* Background Decoration */}
+          <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-emerald-50/50 to-transparent -z-10" />
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-100/30 rounded-full blur-3xl -z-10" />
+        </section>
+
+        {/* Stats / Trust */}
+        <section className="py-12 border-y border-slate-100 bg-slate-50/30">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              {[
+                { icon: Zap, label: "Entrega Instantânea", sub: "Após o PIX" },
+                { icon: ShieldCheck, label: "Garantia de 7 dias", sub: "Segurança total" },
+                { icon: Users, label: "Suporte VIP", sub: "24/7 disponível" },
+                { icon: CheckCircle2, label: "Contas Verificadas", sub: "Qualidade elite" },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center">
+                    <item.icon className="w-6 h-6 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">{item.label}</p>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">{item.sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Products Section */}
+        <section id="produtos" className="py-32">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+              <div>
+                <h2 className="text-4xl font-bold text-slate-900 mb-4">Escolha seu pacote</h2>
+                <p className="text-slate-500 text-lg">Selecione a quantidade ideal para sua operação hoje.</p>
+              </div>
+              <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-full">
+                <Badge variant="outline" className="bg-white border-none shadow-sm px-4 py-2 rounded-full text-sm font-semibold text-emerald-600">
+                  {availableAccountsCount} contas disponíveis
+                </Badge>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {loading ? (
+                Array(3).fill(0).map((_, i) => (
+                  <Card key={i} className="rounded-3xl border-slate-100 overflow-hidden">
+                    <CardHeader className="p-8">
+                      <Skeleton className="h-8 w-1/2 mb-4" />
+                      <Skeleton className="h-4 w-full" />
+                    </CardHeader>
+                    <CardContent className="p-8 pt-0">
+                      <Skeleton className="h-20 w-full mb-6" />
+                      <Skeleton className="h-12 w-full rounded-full" />
+                    </CardContent>
+                  </Card>
+                ))
+              ) : Array.isArray(packages) && packages.length > 0 ? (
+                packages.map((pkg, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                  >
+                    <Card className={`rounded-[32px] border-slate-100 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-100/50 hover:-translate-y-2 group relative overflow-hidden ${i === 1 ? 'ring-2 ring-emerald-500 shadow-xl shadow-emerald-100' : ''}`}>
+                      {i === 1 && (
+                        <div className="absolute top-0 right-0 bg-emerald-500 text-white px-6 py-1.5 rounded-bl-2xl text-xs font-bold uppercase tracking-widest">
+                          Mais Popular
+                        </div>
+                      )}
+                      <CardHeader className="p-10 pb-6">
+                        <CardTitle className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</CardTitle>
+                        <CardDescription className="text-slate-500 font-medium">
+                          Ideal para {pkg.profiles === "1" ? "iniciantes" : "escala rápida"}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-10 pt-0">
+                        <div className="flex items-baseline gap-1 mb-8">
+                          <span className="text-4xl font-black text-slate-900">R$ {pkg.price}</span>
+                          <span className="text-slate-400 font-medium">/total</span>
+                        </div>
+                        
+                        <div className="space-y-4 mb-10">
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            </div>
+                            <span className="font-medium">{pkg.profiles} Perfis Completos</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            </div>
+                            <span className="font-medium">{pkg.accounts} Contas no total</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            </div>
+                            <span className="font-medium">Acesso Outlook + TikTok</span>
+                          </div>
+                        </div>
+
+                        <Button 
+                          onClick={() => handleBuy(pkg)}
+                          className={`w-full h-14 rounded-2xl text-lg font-bold transition-all ${i === 1 ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-slate-900 hover:bg-slate-800 text-white'}`}
+                        >
+                          Comprar Agora
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="col-span-3 text-center py-20 text-slate-400">
+                  Nenhum pacote disponível no momento.
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Security Section */}
+        <section id="seguranca" className="py-32 bg-slate-900 text-white overflow-hidden relative">
+          <div className="max-w-7xl mx-auto px-6 relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+              <div>
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-none mb-6">Segurança Máxima</Badge>
+                <h2 className="text-5xl font-bold mb-8 leading-tight">Sua operação em boas mãos.</h2>
+                <div className="space-y-8">
+                  {[
+                    { title: "Criptografia de Ponta", desc: "Seus dados e acessos são protegidos com os mais altos padrões de segurança digital." },
+                    { title: "Verificação Manual", desc: "Cada conta passa por um processo rigoroso de validação antes de ser listada." },
+                    { title: "Entrega Automatizada", desc: "Sem espera. O sistema libera seus acessos no momento em que o PIX é confirmado." },
+                  ].map((item, i) => (
+                    <div key={i} className="flex gap-6">
+                      <div className="w-14 h-14 rounded-2xl bg-white/5 flex-shrink-0 flex items-center justify-center border border-white/10">
+                        <ShieldCheck className="w-8 h-8 text-emerald-500" />
+                      </div>
+                      <div>
+                        <h4 className="text-xl font-bold mb-2">{item.title}</h4>
+                        <p className="text-slate-400 leading-relaxed">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <div className="aspect-square bg-emerald-500/10 rounded-[64px] border border-emerald-500/20 flex items-center justify-center p-12">
+                  <div className="w-full h-full bg-slate-800 rounded-[48px] shadow-2xl border border-white/5 p-8 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                          <Zap className="w-6 h-6 text-emerald-500" />
+                        </div>
+                        <span className="font-bold">Dominus System</span>
+                      </div>
+                      <Badge className="bg-emerald-500 text-white">Ativo</Badge>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          whileInView={{ width: "100%" }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="h-full bg-emerald-500" 
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 font-mono">SCANNING_ACCOUNTS_INTEGRITY...</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                        <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Status</p>
+                        <p className="text-emerald-400 font-bold">Protegido</p>
+                      </div>
+                      <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                        <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Uptime</p>
+                        <p className="text-white font-bold">99.9%</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Decorative circles */}
+                <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl" />
+                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ / Support */}
+        <section id="suporte" className="py-32 bg-white">
+          <div className="max-w-3xl mx-auto px-6 text-center">
+            <h2 className="text-4xl font-bold text-slate-900 mb-6">Ainda tem dúvidas?</h2>
+            <p className="text-slate-500 text-lg mb-12">Nossa equipe de especialistas está pronta para te ajudar a escalar sua operação.</p>
+            <a 
+              href="https://wa.me/5500000000000" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "rounded-full px-10 h-14 border-slate-200 hover:bg-slate-50 text-slate-700 font-bold"
+              )}
+            >
+              Falar com Suporte no WhatsApp
+            </a>
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-slate-50 py-20 border-t border-slate-100">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-10">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                <Zap className="text-white w-5 h-5 fill-current" />
+              </div>
+              <span className="text-lg font-bold tracking-tight text-slate-800">Dominus<span className="text-emerald-500">Scale</span></span>
+            </div>
+            <p className="text-slate-400 text-sm">
+              © 2024 DominusScale. Todos os direitos reservados.
+            </p>
+            <div className="flex items-center gap-6 text-slate-400 text-sm font-medium">
+              <a href="#" className="hover:text-emerald-500 transition-colors">Termos</a>
+              <a href="#" className="hover:text-emerald-500 transition-colors">Privacidade</a>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* PIX Modal */}
+      <Dialog open={isPixModalOpen} onOpenChange={setIsPixModalOpen}>
+        <DialogContent className="sm:max-w-[450px] rounded-[32px] p-0 overflow-hidden border-none shadow-2xl">
+          <div className="bg-emerald-500 p-8 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold text-white">Finalizar Pagamento</DialogTitle>
+              <DialogDescription className="text-emerald-100">
+                Escaneie o QR Code ou copie o código PIX abaixo.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          
+          <div className="p-8">
+            <div className="flex flex-col items-center gap-8">
+              <div className="relative group">
+                <div className="absolute -inset-4 bg-emerald-500/5 rounded-[40px] blur-xl group-hover:bg-emerald-500/10 transition-all" />
+                <div className="relative bg-white p-4 rounded-[32px] shadow-sm border border-slate-100">
+                  {pixData ? (
+                    <img src={pixData.qrCode} alt="QR Code PIX" className="w-48 h-48" />
+                  ) : (
+                    <Skeleton className="w-48 h-48 rounded-2xl" />
+                  )}
+                </div>
+              </div>
+
+              <div className="w-full space-y-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Código PIX (Copia e Cola)</p>
+                    <p className="text-sm font-mono text-slate-600 truncate">
+                      {pixData ? pixData.pixCode : "Gerando código..."}
+                    </p>
+                  </div>
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="h-12 w-12 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 shrink-0"
+                    onClick={copyPixCode}
+                    disabled={!pixData}
+                  >
+                    <Copy className="w-5 h-5" />
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                    <Zap className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                    Após o pagamento, suas contas serão enviadas automaticamente para o seu e-mail e aparecerão aqui.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-8 pt-0">
+            <Button 
+              variant="outline" 
+              className="w-full h-12 rounded-xl border-slate-200 text-slate-500"
+              onClick={() => setIsPixModalOpen(false)}
+            >
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

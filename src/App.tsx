@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QRCode from "qrcode";
-import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, db, doc, setDoc, getDoc } from "./firebase";
+import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, db, doc, setDoc, getDoc, updateDoc } from "./firebase";
 import { User } from "firebase/auth";
 
 interface PackageData {
@@ -59,6 +59,13 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSuccessPage, setIsSuccessPage] = useState(window.location.pathname === "/success");
+  const [customerData, setCustomerData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    taxId: ""
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -85,6 +92,19 @@ export default function App() {
             photoURL: currentUser.photoURL,
             role: "user",
             createdAt: new Date().toISOString()
+          });
+          setCustomerData(prev => ({
+            ...prev,
+            name: currentUser.displayName || "",
+            email: currentUser.email || ""
+          }));
+        } else {
+          const data = userSnap.data();
+          setCustomerData({
+            name: data.customerName || data.displayName || currentUser.displayName || "",
+            email: data.customerEmail || data.email || currentUser.email || "",
+            phone: data.customerPhone || "",
+            taxId: data.customerTaxId || ""
           });
         }
       }
@@ -140,26 +160,48 @@ export default function App() {
     setSelectedPackage(pkg);
     setPixData(null);
     setIsPixModalOpen(true);
+  };
 
+  const generatePix = async () => {
+    if (!selectedPackage || !user) return;
+    
+    if (!customerData.name || !customerData.email || !customerData.phone || !customerData.taxId) {
+      toast.error("Por favor, preencha todos os campos.");
+      return;
+    }
+
+    setIsGenerating(true);
     try {
       // Robust price parsing
-      const cleanedPrice = pkg.price.replace(/[^\d.,]/g, "");
+      const cleanedPrice = selectedPackage.price.replace(/[^\d.,]/g, "");
       const priceValue = cleanedPrice.includes(",") && cleanedPrice.indexOf(",") > cleanedPrice.indexOf(".") 
         ? parseFloat(cleanedPrice.replace(/\./g, "").replace(",", "."))
         : parseFloat(cleanedPrice.replace(/,/g, ""));
       
       if (isNaN(priceValue) || priceValue <= 0) {
         toast.error("Erro ao processar o preço do pacote.");
+        setIsGenerating(false);
         return;
       }
 
       const response = await axios.post("/api/pix/generate", { 
         amount: priceValue, 
-        packageId: pkg.name,
-        customerEmail: user.email 
+        packageId: selectedPackage.name,
+        customer: customerData
       });
       
       const data = response.data;
+
+      // Save customer data to Firestore for future use
+      if (user) {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+          customerName: customerData.name,
+          customerEmail: customerData.email,
+          customerPhone: customerData.phone,
+          customerTaxId: customerData.taxId
+        });
+      }
       
       // If it's a URL (checkout), we can redirect or show it
       if (data.pixCode && data.pixCode.startsWith("http")) {
@@ -172,6 +214,10 @@ export default function App() {
         });
       } else {
         let qrCodeUrl = data.qrCode;
+        if (qrCodeUrl && !qrCodeUrl.startsWith("data:")) {
+          qrCodeUrl = `data:image/png;base64,${qrCodeUrl}`;
+        }
+        
         if (!qrCodeUrl && data.pixCode) {
           qrCodeUrl = await QRCode.toDataURL(data.pixCode);
         }
@@ -186,6 +232,8 @@ export default function App() {
       console.error("Error generating PIX:", error);
       const errorMsg = error.response?.data?.details?.error || error.response?.data?.error || "Erro ao gerar pagamento. Tente novamente.";
       toast.error(errorMsg);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -593,57 +641,113 @@ export default function App() {
             </DialogHeader>
           </div>
           
-          <div className="p-8">
-            <div className="flex flex-col items-center gap-8">
-              <div className="relative group">
-                <div className="absolute -inset-4 bg-emerald-500/5 rounded-[40px] blur-xl group-hover:bg-emerald-500/10 transition-all" />
-                <div className="relative bg-white p-4 rounded-[32px] shadow-sm border border-slate-100">
-                  {pixData ? (
-                    <img src={pixData.qrCode} alt="QR Code PIX" className="w-48 h-48" />
-                  ) : (
-                    <Skeleton className="w-48 h-48 rounded-2xl" />
-                  )}
-                </div>
-              </div>
-
-              <div className="w-full space-y-4">
-                {pixData?.isUrl ? (
-                  <Button 
-                    className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-bold shadow-lg shadow-emerald-500/20"
-                    onClick={() => window.open(pixData.pixCode, "_blank")}
-                  >
-                    Pagar no Abacate Pay <ExternalLink className="ml-2 w-5 h-5" />
-                  </Button>
-                ) : (
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
-                    <div className="flex-1 overflow-hidden">
-                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Código PIX (Copia e Cola)</p>
-                      <p className="text-sm font-mono text-slate-600 truncate">
-                        {pixData ? pixData.pixCode : "Gerando código..."}
-                      </p>
+          <div className="p-8 max-h-[70vh] overflow-y-auto">
+            {!pixData ? (
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nome Completo</label>
+                    <input 
+                      type="text" 
+                      value={customerData.name}
+                      onChange={(e) => setCustomerData({...customerData, name: e.target.value})}
+                      className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      placeholder="Seu nome completo"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">E-mail</label>
+                    <input 
+                      type="email" 
+                      value={customerData.email}
+                      onChange={(e) => setCustomerData({...customerData, email: e.target.value})}
+                      className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      placeholder="seu@email.com"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Telefone</label>
+                      <input 
+                        type="text" 
+                        value={customerData.phone}
+                        onChange={(e) => setCustomerData({...customerData, phone: e.target.value})}
+                        className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                        placeholder="(00) 00000-0000"
+                      />
                     </div>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      className="h-12 w-12 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 shrink-0"
-                      onClick={copyPixCode}
-                      disabled={!pixData}
-                    >
-                      <Copy className="w-5 h-5" />
-                    </Button>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">CPF</label>
+                      <input 
+                        type="text" 
+                        value={customerData.taxId}
+                        onChange={(e) => setCustomerData({...customerData, taxId: e.target.value})}
+                        className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                        placeholder="000.000.000-00"
+                      />
+                    </div>
                   </div>
-                )}
+                </div>
+                <Button 
+                  onClick={generatePix}
+                  disabled={isGenerating}
+                  className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-bold shadow-lg shadow-emerald-500/20"
+                >
+                  {isGenerating ? "Gerando PIX..." : "Gerar Código PIX"}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-6">
+                <div className="relative">
+                  <div className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex items-center justify-center">
+                    {pixData.qrCode ? (
+                      <img src={pixData.qrCode} alt="QR Code PIX" className="w-48 h-48 object-contain" />
+                    ) : (
+                      <div className="w-48 h-48 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 text-xs">
+                        QR Code Indisponível
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-                <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                    <Zap className="w-5 h-5 text-blue-600" />
+                <div className="w-full space-y-4">
+                  {pixData.isUrl ? (
+                    <Button 
+                      className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-bold shadow-lg shadow-emerald-500/20"
+                      onClick={() => window.open(pixData.pixCode, "_blank")}
+                    >
+                      Pagar no Abacate Pay <ExternalLink className="ml-2 w-5 h-5" />
+                    </Button>
+                  ) : (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Código PIX (Copia e Cola)</p>
+                        <p className="text-sm font-mono text-slate-600 truncate">
+                          {pixData.pixCode}
+                        </p>
+                      </div>
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-12 w-12 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 shrink-0"
+                        onClick={copyPixCode}
+                      >
+                        <Copy className="w-5 h-5" />
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <Zap className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                      Após o pagamento, suas contas serão enviadas automaticamente para o seu e-mail e aparecerão aqui.
+                    </p>
                   </div>
-                  <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                    Após o pagamento, suas contas serão enviadas automaticamente para o seu e-mail e aparecerão aqui.
-                  </p>
                 </div>
               </div>
-            </div>
+            )}
           </div>
           
           <div className="p-8 pt-0">

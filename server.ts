@@ -70,12 +70,12 @@ async function startServer() {
 
   // Abacate Pay PIX generation
   app.post("/api/pix/generate", async (req, res) => {
-    const { amount, packageId, customerEmail } = req.body;
+    const { amount, packageId, customer } = req.body;
     
-    console.log("PIX Request received:", { amount, packageId, customerEmail });
+    console.log("PIX Request received:", { amount, packageId, customer });
 
-    if (!amount || !packageId || !customerEmail) {
-      return res.status(400).json({ error: "Missing required fields: amount, packageId, or customerEmail" });
+    if (!amount || !packageId || !customer) {
+      return res.status(400).json({ error: "Missing required fields: amount, packageId, or customer" });
     }
 
     // Ensure amount is a valid number
@@ -86,6 +86,7 @@ async function startServer() {
     }
 
     const apiKey = process.env.ABACATE_PAY_API_KEY;
+    console.log("API Key present:", !!apiKey);
 
     if (!apiKey) {
       // Fallback to mock if API key is missing
@@ -97,26 +98,21 @@ async function startServer() {
     try {
       const numericAmountCents = Math.round(numericAmount * 100);
       
-      const billingData = {
-        frequency: "ONE_TIME",
-        methods: ["PIX", "CARD"],
-        products: [{
-          externalId: String(packageId),
-          name: `Pacote: ${packageId}`,
-          quantity: 1,
-          price: numericAmountCents, // Changed from priceUnit to price
-        }],
-        returnUrl: `${process.env.APP_URL || "http://localhost:3000"}/success?packageId=${packageId}`,
-        completionUrl: `${process.env.APP_URL || "http://localhost:3000"}/success?packageId=${packageId}`,
+      // Using pixQrCode/create for direct PIX generation as it's more suitable for a modal
+      const pixData = {
+        amount: Number(numericAmountCents),
+        description: String(`Pacote: ${packageId}`).substring(0, 140), // Max 140 chars
         customer: {
-          email: customerEmail,
-          name: customerEmail.split("@")[0],
+          name: String(customer.name),
+          email: String(customer.email),
+          cellphone: String(customer.phone).replace(/\D/g, ""),
+          taxId: String(customer.taxId).replace(/\D/g, ""),
         },
       };
 
-      console.log("Sending to Abacate Pay:", JSON.stringify(billingData, null, 2));
-
-      const response = await axios.post("https://api.abacatepay.com/v1/billing/create", billingData, {
+      console.log("Sending to Abacate Pay (PIX):", JSON.stringify(pixData, null, 2));
+      
+      const response = await axios.post("https://api.abacatepay.com/v1/pixQrCode/create", pixData, {
         headers: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
@@ -124,19 +120,23 @@ async function startServer() {
         }
       });
 
-      // Abacate Pay billing/create returns a checkout URL
-      const billing = response.data.data;
+      console.log("Abacate Pay Response:", JSON.stringify(response.data, null, 2));
+
+      const data = response.data.data;
       res.json({
-        pixCode: billing.url, // Use the checkout URL
-        txId: billing.id,
+        pixCode: data.brCode,
+        qrCode: data.brCodeBase64,
+        txId: data.id,
         isMock: false
       });
     } catch (error: any) {
       const errorData = error.response?.data;
-      console.error("Abacate Pay Error:", errorData || error.message);
-      res.status(error.response?.status || 500).json({ 
+      const errorStatus = error.response?.status;
+      console.error(`Abacate Pay Error [${errorStatus}]:`, JSON.stringify(errorData, null, 2) || error.message);
+      res.status(errorStatus || 500).json({ 
         error: "Failed to generate PIX via Abacate Pay",
-        details: errorData
+        details: errorData,
+        message: error.message
       });
     }
   });

@@ -87,43 +87,57 @@ app.post("/api/pix/generate", async (req, res) => {
   try {
     const numericAmountCents = Math.round(numericAmount * 100);
     
-    // Using pixQrCode/create for direct PIX generation (compatible with bank apps)
+    // Using pixQrCode/create for direct PIX generation
+    // We'll also try to be very careful with the data types
     const pixData = {
       amount: Number(numericAmountCents),
-      description: String(`Pacote: ${packageId}`).substring(0, 140),
+      description: String(`Pedido: ${packageId}`).substring(0, 140),
       customer: {
-        name: String(customer.name),
-        email: String(customer.email),
+        name: String(customer.name).trim(),
+        email: String(customer.email).trim(),
         cellphone: String(customer.phone).replace(/\D/g, ""),
         taxId: String(customer.taxId).replace(/\D/g, ""),
       },
     };
 
-    console.log("Generating Direct PIX via Abacate Pay:", JSON.stringify(pixData, null, 2));
+    console.log("DEBUG: Sending to Abacate Pay:", JSON.stringify(pixData, null, 2));
 
     const response = await axios.post("https://api.abacatepay.com/v1/pixQrCode/create", pixData, {
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
         "Accept": "application/json"
-      }
+      },
+      timeout: 10000 // 10s timeout
     });
 
-    console.log("Abacate Pay Response:", JSON.stringify(response.data, null, 2));
+    console.log("DEBUG: Abacate Pay Response Status:", response.status);
+    console.log("DEBUG: Abacate Pay Response Data:", JSON.stringify(response.data, null, 2));
 
-    const data = response.data.data;
+    const apiResponse = response.data;
+    const data = apiResponse.data;
+
+    if (!data || (!data.brCode && !data.brCodeBase64)) {
+      throw new Error("Resposta da Abacate Pay não contém dados do PIX.");
+    }
+
     res.json({
-      pixCode: data.brCode,
-      qrCode: data.brCodeBase64, // This is the actual PIX image
-      txId: data.id,
-      isMock: false
+      pixCode: data.brCode || "",
+      qrCode: data.brCodeBase64 || "", // This is the base64 image
+      txId: data.id || data.txid || "",
+      isMock: false,
+      raw: data // Sending raw data for frontend debugging if needed
     });
   } catch (error: any) {
     const errorData = error.response?.data;
-    console.error("Abacate Pay API Error:", JSON.stringify(errorData, null, 2) || error.message);
+    console.error("CRITICAL: Abacate Pay API Error:", JSON.stringify(errorData, null, 2) || error.message);
+    
+    // Provide more descriptive error to frontend
+    const details = errorData?.error || errorData?.message || error.message;
     res.status(error.response?.status || 500).json({ 
-      error: "Abacate Pay Error",
-      details: errorData
+      error: "Erro na Abacate Pay",
+      details: details,
+      fullError: errorData
     });
   }
 });

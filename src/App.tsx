@@ -242,7 +242,7 @@ export default function App() {
         });
       }
       
-      // If it's a URL (checkout), we can redirect or show it
+      // Handle PIX data response
       if (data.pixCode && data.pixCode.startsWith("http")) {
         // For checkout URLs, we'll show a button to open it
         const qrCodeUrl = await QRCode.toDataURL(data.pixCode);
@@ -251,14 +251,15 @@ export default function App() {
           qrCode: qrCodeUrl,
           isUrl: true
         });
-      } else {
+      } else if (data.pixCode) {
         let qrCodeUrl = data.qrCode;
-        if (qrCodeUrl && !qrCodeUrl.startsWith("data:")) {
-          qrCodeUrl = `data:image/png;base64,${qrCodeUrl}`;
-        }
         
-        if (!qrCodeUrl && data.pixCode) {
+        // If the API didn't return a QR code image, generate one from the PIX code
+        if (!qrCodeUrl) {
           qrCodeUrl = await QRCode.toDataURL(data.pixCode);
+        } else if (!qrCodeUrl.startsWith("data:")) {
+          // Ensure base64 has the correct prefix
+          qrCodeUrl = `data:image/png;base64,${qrCodeUrl}`;
         }
         
         setPixData({
@@ -266,11 +267,14 @@ export default function App() {
           qrCode: qrCodeUrl,
           isUrl: false
         });
+      } else {
+        throw new Error("O servidor não retornou um código PIX válido.");
       }
     } catch (error: any) {
       console.error("Error generating PIX:", error);
-      const errorMsg = error.response?.data?.details?.error || error.response?.data?.error || "Erro ao gerar pagamento. Tente novamente.";
-      toast.error(errorMsg);
+      const errorData = error.response?.data;
+      const errorMsg = errorData?.details || errorData?.error || error.message || "Erro ao gerar pagamento. Tente novamente.";
+      toast.error(errorMsg, { duration: 5000 });
     } finally {
       setIsGenerating(false);
     }

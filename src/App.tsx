@@ -166,11 +166,40 @@ export default function App() {
     setIsPixModalOpen(true);
   };
 
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    if (numbers.length <= 11) {
+      return numbers
+        .replace(/(\d{2})(\d)/, "($1) $2")
+        .replace(/(\d{5})(\d)/, "$1-$2")
+        .replace(/(-\d{4})\d+?$/, "$1");
+    }
+    return numbers;
+  };
+
+  const formatTaxId = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    if (numbers.length <= 11) {
+      return numbers
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+        .replace(/(-\d{2})\d+?$/, "$1");
+    }
+    return numbers;
+  };
+
   const generatePix = async () => {
     if (!selectedPackage || !user) return;
     
     if (!customerData.name || !customerData.email || !customerData.phone || !customerData.taxId) {
       toast.error("Por favor, preencha todos os campos.");
+      return;
+    }
+
+    const cleanTaxId = customerData.taxId.replace(/\D/g, "");
+    if (cleanTaxId.length !== 11 && cleanTaxId.length !== 14) {
+      toast.error("CPF ou CNPJ inválido. Verifique os números.");
       return;
     }
 
@@ -715,7 +744,7 @@ export default function App() {
                       <input 
                         type="text" 
                         value={customerData.phone}
-                        onChange={(e) => setCustomerData({...customerData, phone: e.target.value})}
+                        onChange={(e) => setCustomerData({...customerData, phone: formatPhone(e.target.value)})}
                         className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         placeholder="(00) 00000-0000"
                       />
@@ -725,7 +754,7 @@ export default function App() {
                       <input 
                         type="text" 
                         value={customerData.taxId}
-                        onChange={(e) => setCustomerData({...customerData, taxId: e.target.value})}
+                        onChange={(e) => setCustomerData({...customerData, taxId: formatTaxId(e.target.value)})}
                         className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         placeholder="000.000.000-00"
                       />
@@ -755,13 +784,22 @@ export default function App() {
                 </div>
 
                 <div className="w-full space-y-4">
-                  {pixData.isUrl ? (
-                    <Button 
-                      className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-bold shadow-lg shadow-emerald-500/20"
-                      onClick={() => window.open(pixData.pixCode, "_blank")}
-                    >
-                      Pagar no Abacate Pay <ExternalLink className="ml-2 w-5 h-5" />
-                    </Button>
+                  {pixData.isUrl || pixData.pixCode.startsWith("http") ? (
+                    <div className="space-y-4">
+                      <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 text-center">
+                        <p className="text-emerald-800 font-bold mb-2">Checkout Seguro Gerado</p>
+                        <p className="text-emerald-600 text-sm">Clique no botão abaixo para abrir a página de pagamento oficial da Abacate Pay e concluir seu PIX.</p>
+                      </div>
+                      <Button 
+                        className="w-full h-16 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-xl font-black shadow-xl shadow-emerald-500/30 group"
+                        onClick={() => window.open(pixData.pixCode, "_blank")}
+                      >
+                        PAGAR AGORA <ArrowRight className="ml-2 w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                      </Button>
+                      <p className="text-[10px] text-center text-slate-400 uppercase tracking-widest font-bold">
+                        Pagamento processado por Abacate Pay
+                      </p>
+                    </div>
                   ) : (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
                       <div className="flex-1 overflow-hidden">

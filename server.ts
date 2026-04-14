@@ -86,9 +86,21 @@ app.post("/api/pix/generate", async (req, res) => {
 
   try {
     const numericAmountCents = Math.round(numericAmount * 100);
-    const pixData = {
-      amount: Number(numericAmountCents),
-      description: String(`Pacote: ${packageId}`).substring(0, 140),
+    
+    // Using billing/create for production as it's more robust and provides a checkout URL
+    const billingData = {
+      frequency: "ONE_TIME",
+      methods: ["PIX"],
+      products: [
+        {
+          externalId: packageId,
+          name: String(packageId),
+          quantity: 1,
+          unitPrice: Number(numericAmountCents),
+        },
+      ],
+      returnUrl: process.env.APP_URL || "https://tiktok-escale.vercel.app",
+      completionUrl: `${process.env.APP_URL || "https://tiktok-escale.vercel.app"}/success`,
       customer: {
         name: String(customer.name),
         email: String(customer.email),
@@ -97,7 +109,9 @@ app.post("/api/pix/generate", async (req, res) => {
       },
     };
 
-    const response = await axios.post("https://api.abacatepay.com/v1/pixQrCode/create", pixData, {
+    console.log("Creating Abacate Pay Billing:", JSON.stringify(billingData, null, 2));
+
+    const response = await axios.post("https://api.abacatepay.com/v1/billing/create", billingData, {
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -106,16 +120,19 @@ app.post("/api/pix/generate", async (req, res) => {
     });
 
     const data = response.data.data;
+    // Abacate Pay billing/create returns a 'url' for checkout and sometimes direct PIX info
     res.json({
-      pixCode: data.brCode,
-      qrCode: data.brCodeBase64,
+      pixCode: data.url, // Use the checkout URL as the primary code
+      checkoutUrl: data.url,
       txId: data.id,
       isMock: false
     });
   } catch (error: any) {
+    const errorData = error.response?.data;
+    console.error("Abacate Pay Error:", JSON.stringify(errorData, null, 2) || error.message);
     res.status(error.response?.status || 500).json({ 
       error: "Abacate Pay Error",
-      details: error.response?.data
+      details: errorData
     });
   }
 });

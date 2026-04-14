@@ -66,6 +66,7 @@ export default function App() {
     taxId: ""
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [quantity, setQuantity] = useState(5);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -175,11 +176,17 @@ export default function App() {
 
     setIsGenerating(true);
     try {
-      // Robust price parsing
-      const cleanedPrice = selectedPackage.price.replace(/[^\d.,]/g, "");
-      const priceValue = cleanedPrice.includes(",") && cleanedPrice.indexOf(",") > cleanedPrice.indexOf(".") 
-        ? parseFloat(cleanedPrice.replace(/\./g, "").replace(",", "."))
-        : parseFloat(cleanedPrice.replace(/,/g, ""));
+      let priceValue = 0;
+      
+      if (selectedPackage.name === "Pacote 3") {
+        priceValue = quantity * 140;
+      } else {
+        // Robust price parsing
+        const cleanedPrice = selectedPackage.price.replace(/[^\d.,]/g, "");
+        priceValue = cleanedPrice.includes(",") && cleanedPrice.indexOf(",") > cleanedPrice.indexOf(".") 
+          ? parseFloat(cleanedPrice.replace(/\./g, "").replace(",", "."))
+          : parseFloat(cleanedPrice.replace(/,/g, ""));
+      }
       
       if (isNaN(priceValue) || priceValue <= 0) {
         toast.error("Erro ao processar o preço do pacote.");
@@ -189,7 +196,7 @@ export default function App() {
 
       const response = await axios.post("/api/pix/generate", { 
         amount: priceValue, 
-        packageId: selectedPackage.name,
+        packageId: selectedPackage.name === "Pacote 3" ? `Pacote 3 (${quantity} perfis)` : selectedPackage.name,
         customer: customerData
       });
       
@@ -475,27 +482,61 @@ export default function App() {
                       <CardHeader className="p-10 pb-6">
                         <CardTitle className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</CardTitle>
                         <CardDescription className="text-slate-500 font-medium">
-                          Ideal para {pkg.profiles === "1" ? "iniciantes" : "escala rápida"}
+                          {pkg.name === "Pacote 3" ? "Ideal para grandes operações" : (pkg.profiles === "1" ? "Ideal para iniciantes" : "Ideal para escala rápida")}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="p-10 pt-0">
                         <div className="flex items-baseline gap-1 mb-8">
-                          <span className="text-4xl font-black text-slate-900">R$ {pkg.price}</span>
+                          <span className="text-4xl font-black text-slate-900">
+                            R$ {pkg.name === "Pacote 3" ? (quantity * 140).toLocaleString('pt-BR') : pkg.price}
+                          </span>
                           <span className="text-slate-400 font-medium">/total</span>
                         </div>
                         
+                        {pkg.name === "Pacote 3" && (
+                          <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
+                              Quantidade de Perfis (mín. 5)
+                            </label>
+                            <div className="flex items-center gap-4">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-10 w-10 rounded-xl"
+                                onClick={() => setQuantity(Math.max(5, quantity - 1))}
+                              >
+                                -
+                              </Button>
+                              <span className="text-xl font-bold text-slate-800 w-8 text-center">{quantity}</span>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-10 w-10 rounded-xl"
+                                onClick={() => setQuantity(quantity + 1)}
+                              >
+                                +
+                              </Button>
+                              <span className="text-xs text-slate-400 ml-auto">R$ 140 / perfil</span>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="space-y-4 mb-10">
                           <div className="flex items-center gap-3 text-slate-600">
                             <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
                               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                             </div>
-                            <span className="font-medium">{pkg.profiles} Perfis Completos</span>
+                            <span className="font-medium">
+                              {pkg.name === "Pacote 3" ? `${quantity} Perfis Completos` : `${pkg.profiles} Perfis Completos`}
+                            </span>
                           </div>
                           <div className="flex items-center gap-3 text-slate-600">
                             <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
                               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                             </div>
-                            <span className="font-medium">{pkg.accounts} Contas no total</span>
+                            <span className="font-medium">
+                              {pkg.name === "Pacote 3" ? `${quantity * 90} Contas no total` : `${pkg.accounts} Contas no total`}
+                            </span>
                           </div>
                           <div className="flex items-center gap-3 text-slate-600">
                             <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">

@@ -135,9 +135,12 @@ export default function App() {
     try {
       await signInWithPopup(auth, googleProvider);
       toast.success("Login realizado com sucesso!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Erro ao fazer login.");
+      const errorMessage = error.code === 'auth/unauthorized-domain' 
+        ? "Domínio não autorizado no Firebase. Adicione tiktok-escale.vercel.app no console do Firebase."
+        : `Erro ao fazer login: ${error.message}`;
+      toast.error(errorMessage);
     }
   };
 

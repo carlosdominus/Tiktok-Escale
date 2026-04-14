@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
+import axios from "axios";
 import { 
   ShoppingCart, 
   ShieldCheck, 
@@ -53,10 +54,19 @@ export default function App() {
   const [accounts, setAccounts] = useState<AccountData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPackage, setSelectedPackage] = useState<PackageData | null>(null);
-  const [pixData, setPixData] = useState<{ pixCode: string; qrCode: string } | null>(null);
+  const [pixData, setPixData] = useState<{ pixCode: string; qrCode: string; isUrl?: boolean } | null>(null);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isSuccessPage, setIsSuccessPage] = useState(window.location.pathname === "/success");
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setIsSuccessPage(window.location.pathname === "/success");
+    };
+    window.addEventListener("popstate", handleLocationChange);
+    return () => window.removeEventListener("popstate", handleLocationChange);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -86,13 +96,11 @@ export default function App() {
     const loadInitialData = async () => {
       try {
         const [pkgRes, accRes] = await Promise.all([
-          window.fetch("/api/packages"),
-          window.fetch("/api/accounts")
+          axios.get("/api/packages"),
+          axios.get("/api/accounts")
         ]);
-        const pkgData = await pkgRes.json();
-        const accData = await accRes.json();
-        setPackages(Array.isArray(pkgData) ? pkgData : []);
-        setAccounts(Array.isArray(accData) ? accData : []);
+        setPackages(Array.isArray(pkgRes.data) ? pkgRes.data : []);
+        setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
       } catch (error) {
         console.error("Error fetching data:", error);
         toast.error("Erro ao carregar informações. Tente novamente.");
@@ -134,33 +142,50 @@ export default function App() {
     setIsPixModalOpen(true);
 
     try {
-      const priceValue = parseFloat(pkg.price.replace(/[^\d,]/g, "").replace(",", "."));
+      // Robust price parsing
+      const cleanedPrice = pkg.price.replace(/[^\d.,]/g, "");
+      const priceValue = cleanedPrice.includes(",") && cleanedPrice.indexOf(",") > cleanedPrice.indexOf(".") 
+        ? parseFloat(cleanedPrice.replace(/\./g, "").replace(",", "."))
+        : parseFloat(cleanedPrice.replace(/,/g, ""));
       
-      const response = await window.fetch("/api/pix/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          amount: priceValue, 
-          packageId: pkg.name,
-          customerEmail: user.email 
-        }),
-      });
-      
-      const data = await response.json();
-      
-      // If Abacate Pay returned a QR code URL directly, use it, otherwise generate from pixCode
-      let qrCodeUrl = data.qrCode;
-      if (!qrCodeUrl && data.pixCode) {
-        qrCodeUrl = await QRCode.toDataURL(data.pixCode);
+      if (isNaN(priceValue) || priceValue <= 0) {
+        toast.error("Erro ao processar o preço do pacote.");
+        return;
       }
-      
-      setPixData({
-        pixCode: data.pixCode,
-        qrCode: qrCodeUrl
+
+      const response = await axios.post("/api/pix/generate", { 
+        amount: priceValue, 
+        packageId: pkg.name,
+        customerEmail: user.email 
       });
-    } catch (error) {
+      
+      const data = response.data;
+      
+      // If it's a URL (checkout), we can redirect or show it
+      if (data.pixCode && data.pixCode.startsWith("http")) {
+        // For checkout URLs, we'll show a button to open it
+        const qrCodeUrl = await QRCode.toDataURL(data.pixCode);
+        setPixData({
+          pixCode: data.pixCode,
+          qrCode: qrCodeUrl,
+          isUrl: true
+        });
+      } else {
+        let qrCodeUrl = data.qrCode;
+        if (!qrCodeUrl && data.pixCode) {
+          qrCodeUrl = await QRCode.toDataURL(data.pixCode);
+        }
+        
+        setPixData({
+          pixCode: data.pixCode,
+          qrCode: qrCodeUrl,
+          isUrl: false
+        });
+      }
+    } catch (error: any) {
       console.error("Error generating PIX:", error);
-      toast.error("Erro ao gerar pagamento. Tente novamente.");
+      const errorMsg = error.response?.data?.details?.error || error.response?.data?.error || "Erro ao gerar pagamento. Tente novamente.";
+      toast.error(errorMsg);
     }
   };
 
@@ -172,6 +197,49 @@ export default function App() {
   };
 
   const availableAccountsCount = accounts.filter(a => a.Status === "à venda").length;
+
+  if (isSuccessPage) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full bg-white rounded-[40px] p-12 shadow-2xl shadow-slate-200 text-center"
+        >
+          <div className="w-24 h-24 bg-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-8">
+            <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 mb-4">Pagamento Confirmado!</h1>
+          <p className="text-slate-500 mb-10 leading-relaxed">
+            Seu pedido foi processado com sucesso. Em instantes você receberá os dados de acesso no seu e-mail e nesta tela.
+          </p>
+          
+          <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-10 text-left">
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-4">Seus Acessos</p>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-emerald-500" />
+                </div>
+                <span className="text-sm font-medium text-slate-600">Aguardando liberação automática...</span>
+              </div>
+            </div>
+          </div>
+
+          <Button 
+            variant="outline" 
+            className="w-full h-14 rounded-2xl border-slate-200 text-slate-600 font-bold"
+            onClick={() => {
+              window.history.pushState({}, "", "/");
+              setIsSuccessPage(false);
+            }}
+          >
+            Voltar para Início
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
@@ -539,23 +607,32 @@ export default function App() {
               </div>
 
               <div className="w-full space-y-4">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
-                  <div className="flex-1 overflow-hidden">
-                    <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Código PIX (Copia e Cola)</p>
-                    <p className="text-sm font-mono text-slate-600 truncate">
-                      {pixData ? pixData.pixCode : "Gerando código..."}
-                    </p>
-                  </div>
+                {pixData?.isUrl ? (
                   <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className="h-12 w-12 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 shrink-0"
-                    onClick={copyPixCode}
-                    disabled={!pixData}
+                    className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-bold shadow-lg shadow-emerald-500/20"
+                    onClick={() => window.open(pixData.pixCode, "_blank")}
                   >
-                    <Copy className="w-5 h-5" />
+                    Pagar no Abacate Pay <ExternalLink className="ml-2 w-5 h-5" />
                   </Button>
-                </div>
+                ) : (
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
+                    <div className="flex-1 overflow-hidden">
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Código PIX (Copia e Cola)</p>
+                      <p className="text-sm font-mono text-slate-600 truncate">
+                        {pixData ? pixData.pixCode : "Gerando código..."}
+                      </p>
+                    </div>
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      className="h-12 w-12 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 shrink-0"
+                      onClick={copyPixCode}
+                      disabled={!pixData}
+                    >
+                      <Copy className="w-5 h-5" />
+                    </Button>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
                   <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">

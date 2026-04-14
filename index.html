@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Google AI Studio App</title>
+    <script>
+      // Prevent crash if a library tries to overwrite window.fetch
+      // which is read-only in some iframe environments.
+      (function() {
+        try {
+          var originalFetch = window.fetch;
+          Object.defineProperty(window, 'fetch', {
+            get: function() { return originalFetch; },
+            set: function(v) { console.warn('Blocked attempt to overwrite window.fetch'); },
+            configurable: true
+          });
+        } catch (e) {
+          console.warn('Could not redefine window.fetch:', e.message);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

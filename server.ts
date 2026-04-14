@@ -87,20 +87,10 @@ app.post("/api/pix/generate", async (req, res) => {
   try {
     const numericAmountCents = Math.round(numericAmount * 100);
     
-    // Using billing/create for production as it's more robust and provides a checkout URL
-    const billingData = {
-      frequency: "ONE_TIME",
-      methods: ["PIX"],
-      products: [
-        {
-          externalId: packageId,
-          name: String(packageId),
-          quantity: 1,
-          unitPrice: Number(numericAmountCents),
-        },
-      ],
-      returnUrl: process.env.APP_URL || "https://tiktok-escale.vercel.app",
-      completionUrl: `${process.env.APP_URL || "https://tiktok-escale.vercel.app"}/success`,
+    // Using pixQrCode/create for direct PIX generation (compatible with bank apps)
+    const pixData = {
+      amount: Number(numericAmountCents),
+      description: String(`Pacote: ${packageId}`).substring(0, 140),
       customer: {
         name: String(customer.name),
         email: String(customer.email),
@@ -109,9 +99,9 @@ app.post("/api/pix/generate", async (req, res) => {
       },
     };
 
-    console.log("Creating Abacate Pay Billing:", JSON.stringify(billingData, null, 2));
+    console.log("Generating Direct PIX via Abacate Pay:", JSON.stringify(pixData, null, 2));
 
-    const response = await axios.post("https://api.abacatepay.com/v1/billing/create", billingData, {
+    const response = await axios.post("https://api.abacatepay.com/v1/pixQrCode/create", pixData, {
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -119,17 +109,18 @@ app.post("/api/pix/generate", async (req, res) => {
       }
     });
 
+    console.log("Abacate Pay Response:", JSON.stringify(response.data, null, 2));
+
     const data = response.data.data;
-    // Abacate Pay billing/create returns a 'url' for checkout and sometimes direct PIX info
     res.json({
-      pixCode: data.url, // Use the checkout URL as the primary code
-      checkoutUrl: data.url,
+      pixCode: data.brCode,
+      qrCode: data.brCodeBase64, // This is the actual PIX image
       txId: data.id,
       isMock: false
     });
   } catch (error: any) {
     const errorData = error.response?.data;
-    console.error("Abacate Pay Error:", JSON.stringify(errorData, null, 2) || error.message);
+    console.error("Abacate Pay API Error:", JSON.stringify(errorData, null, 2) || error.message);
     res.status(error.response?.status || 500).json({ 
       error: "Abacate Pay Error",
       details: errorData

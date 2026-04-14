@@ -87,31 +87,22 @@ app.post("/api/pix/generate", async (req, res) => {
   try {
     const numericAmountCents = Math.round(numericAmount * 100);
     
-    // Using billing/create - The most stable way for Production
-    const billingData = {
-      frequency: "ONE_TIME",
-      methods: ["PIX"],
-      products: [
-        {
-          externalId: String(packageId).substring(0, 50),
-          name: String(packageId).substring(0, 100),
-          quantity: 1,
-          unitPrice: Number(numericAmountCents),
-        },
-      ],
-      returnUrl: "https://tiktok-escale.vercel.app",
-      completionUrl: "https://tiktok-escale.vercel.app/success",
+    // Using pixQrCode/create for direct PIX (QR Code + Copy/Paste)
+    // Following the guide's field names and formatting exactly
+    const pixData = {
+      amount: Number(numericAmountCents),
+      description: String(`Pedido: ${packageId}`).substring(0, 140),
       customer: {
         name: String(customer.name).trim(),
         email: String(customer.email).trim(),
-        cellphone: String(customer.phone).replace(/\D/g, ""),
-        taxId: String(customer.taxId).replace(/\D/g, ""),
+        cellphone: String(customer.phone), // Guide shows formatted: "(00) 0000-0000"
+        taxId: String(customer.taxId), // Guide shows formatted: "123.456.789-01"
       },
     };
 
-    console.log("ABACATE_PAY_DEBUG: Requesting Billing:", JSON.stringify(billingData, null, 2));
+    console.log("ABACATE_PAY_DEBUG: Generating Direct PIX:", JSON.stringify(pixData, null, 2));
 
-    const response = await axios.post("https://api.abacatepay.com/v1/billing/create", billingData, {
+    const response = await axios.post("https://api.abacatepay.com/v1/pixQrCode/create", pixData, {
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -119,28 +110,27 @@ app.post("/api/pix/generate", async (req, res) => {
       }
     });
 
-    console.log("ABACATE_PAY_DEBUG: Full Response:", JSON.stringify(response.data, null, 2));
+    console.log("ABACATE_PAY_DEBUG: Success Response:", JSON.stringify(response.data, null, 2));
 
     const data = response.data.data;
     
-    if (!data || !data.url) {
-      throw new Error("A API da Abacate Pay não retornou uma URL de checkout.");
+    if (!data || !data.brCode) {
+      throw new Error("A API da Abacate Pay não retornou um código PIX válido.");
     }
 
     res.json({
-      pixCode: data.url, // This is the checkout URL
-      checkoutUrl: data.url,
+      pixCode: data.brCode,
+      qrCode: data.brCodeBase64, // This is the actual PIX image
       txId: data.id,
       isMock: false
     });
   } catch (error: any) {
     const errorData = error.response?.data;
-    console.error("ABACATE_PAY_CRITICAL_ERROR:", JSON.stringify(errorData, null, 2) || error.message);
+    console.error("ABACATE_PAY_ERROR:", JSON.stringify(errorData, null, 2) || error.message);
     
     res.status(error.response?.status || 500).json({ 
       error: "Erro na Abacate Pay",
-      details: errorData?.error || errorData?.message || error.message,
-      dev_note: "Verifique se sua conta Abacate Pay está ativa para produção e se o CPF/CNPJ é válido."
+      details: errorData?.error || errorData?.message || error.message
     });
   }
 });

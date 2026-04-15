@@ -290,41 +290,54 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
   const event = req.body;
   console.log("WEBHOOK_RECEIVED:", JSON.stringify(event, null, 2));
 
-  // Handle both billing.paid and pix.paid
-  if (event.event === "billing.paid" || event.event === "pix.paid") {
+  const isPaid = event.event === "billing.paid" || event.event === "pix.paid" || event.event === "billing.confirmed";
+  
+  if (isPaid) {
     const billingData = event.data;
-    let saleId = billingData.metadata?.saleId;
+    const saleIdFromMetadata = billingData.metadata?.saleId;
     const externalId = billingData.id;
+    const pixId = billingData.pix?.id;
 
     try {
       let saleRef;
       let saleData;
 
-      if (saleId) {
-        saleRef = db.collection("sales").doc(saleId);
-        const saleSnap = await saleRef.get();
-        if (saleSnap.exists) {
-          saleData = saleSnap.data();
+      // 1. Try by metadata saleId
+      if (saleIdFromMetadata) {
+        console.log(`Trying lookup by metadata saleId: ${saleIdFromMetadata}`);
+        const docRef = db.collection("sales").doc(saleIdFromMetadata);
+        const snap = await docRef.get();
+        if (snap.exists) {
+          saleRef = docRef;
+          saleData = snap.data();
         }
       }
 
-      // Fallback: Search by externalId if saleId not in metadata or not found
+      // 2. Try by externalId (billing ID)
       if (!saleData && externalId) {
-        console.log(`Searching for sale with externalId: ${externalId}`);
-        const salesQuery = await db.collection("sales").where("externalId", "==", externalId).limit(1).get();
-        if (!salesQuery.empty) {
-          saleRef = salesQuery.docs[0].ref;
-          saleId = saleRef.id;
-          saleData = salesQuery.docs[0].data();
+        console.log(`Trying lookup by externalId: ${externalId}`);
+        const q = await db.collection("sales").where("externalId", "==", externalId).limit(1).get();
+        if (!q.empty) {
+          saleRef = q.docs[0].ref;
+          saleData = q.docs[0].data();
+        }
+      }
+
+      // 3. Try by pixId
+      if (!saleData && pixId) {
+        console.log(`Trying lookup by pixId: ${pixId}`);
+        const q = await db.collection("sales").where("externalId", "==", pixId).limit(1).get();
+        if (!q.empty) {
+          saleRef = q.docs[0].ref;
+          saleData = q.docs[0].data();
         }
       }
 
       if (saleRef && saleData && saleData.status !== "paid") {
-        console.log(`Processing payment for Sale ID: ${saleId}`);
+        console.log(`MATCH_FOUND: Processing payment for Sale ${saleRef.id}`);
         
-        let accountsText = "Contas serão entregues em breve. Verifique seus pedidos.";
+        let accountsText = "Pagamento confirmado! Suas contas estão sendo preparadas.";
         
-        // 1. Try to fetch and update Google Sheets, but DON'T block if it fails
         try {
           const sheets = await getSheetsClient();
           if (sheets) {
@@ -335,13 +348,11 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
 
             const rows = sheetResponse.data.values || [];
             const headers = rows[0] || [];
-            
             const emailIdx = headers.indexOf("Email outlook");
             const statusIdx = headers.indexOf("Status");
             const senhaIdx = headers.indexOf("Senha");
 
             if (emailIdx !== -1 && statusIdx !== -1) {
-              // Determine how many accounts to deliver
               let countToDeliver = 1;
               const pkgId = saleData.packageId || "";
               if (pkgId.includes("Pacote 1")) countToDeliver = 1;
@@ -351,22 +362,16 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
                 if (match) countToDeliver = parseInt(match[0]);
               }
 
-              // Select available accounts
-              const selectedRows: { index: number, data: any }[] = [];
+              const selectedRows = [];
               for (let i = 1; i < rows.length; i++) {
                 if (selectedRows.length >= countToDeliver) break;
                 const row = rows[i];
-                const status = row[statusIdx]?.trim().toLowerCase();
-                if (status === "à venda") {
-                  selectedRows.push({
-                    index: i + 1,
-                    data: { User: row[emailIdx], Senha: row[senhaIdx] || "N/A" }
-                  });
+                if (row[statusIdx]?.trim().toLowerCase() === "à venda") {
+                  selectedRows.push({ index: i + 1, User: row[emailIdx], Senha: row[senhaIdx] || "N/A" });
                 }
               }
 
               if (selectedRows.length > 0) {
-                // Mark as "vendida" in Google Sheets
                 for (const row of selectedRows) {
                   await sheets.spreadsheets.values.update({
                     spreadsheetId: ACCOUNTS_SHEET_ID,
@@ -375,29 +380,25 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
                     requestBody: { values: [["vendida"]] }
                   });
                 }
-                accountsText = selectedRows.map(r => `User: ${r.data.User} | Senha: ${r.data.Senha}`).join("\n");
-              } else {
-                accountsText = "ERRO: Estoque esgotado na planilha. Entre em contato com o suporte.";
+                accountsText = selectedRows.map(r => `User: ${r.User} | Senha: ${r.Senha}`).join("\n");
               }
             }
           }
-        } catch (sheetError: any) {
-          console.error("SHEET_UPDATE_FAILED_BUT_CONTINUING:", sheetError.message);
-          accountsText = "Pagamento confirmado! (Erro ao ler planilha: Contate o suporte para receber suas contas)";
+        } catch (sheetErr: any) {
+          console.error("SHEET_ERROR_BUT_CONFIRMING_SALE:", sheetErr.message);
         }
 
-        // 2. ALWAYS update sale status to paid in Firestore
         await saleRef.update({
           status: "paid",
           paidAt: new Date().toISOString(),
           accounts: accountsText
         });
-        console.log(`SUCCESS: Sale ${saleId} marked as PAID regardless of sheet status.`);
+        console.log(`SALE_CONFIRMED: ${saleRef.id}`);
       } else {
-        console.log(`Sale not found or already paid. SaleId: ${saleId}, ExternalId: ${externalId}`);
+        console.log("NO_MATCH_OR_ALREADY_PAID:", { saleIdFromMetadata, externalId, pixId });
       }
     } catch (error: any) {
-      console.error("WEBHOOK_PROCESSING_ERROR:", error.message);
+      console.error("WEBHOOK_FATAL_ERROR:", error.message);
     }
   }
   res.sendStatus(200);

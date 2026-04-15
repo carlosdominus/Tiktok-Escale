@@ -232,30 +232,26 @@ export default function App() {
 
     setIsGenerating(true);
     try {
-      let priceValue = 0;
-      
-      if (selectedPackage.name === "Pacote 3") {
-        priceValue = quantity * 140;
-      } else {
-        // Robust price parsing
-        const cleanedPrice = selectedPackage.price.replace(/[^\d.,]/g, "");
-        priceValue = cleanedPrice.includes(",") && cleanedPrice.indexOf(",") > cleanedPrice.indexOf(".") 
-          ? parseFloat(cleanedPrice.replace(/\./g, "").replace(",", "."))
-          : parseFloat(cleanedPrice.replace(/,/g, ""));
-      }
-      
-      if (isNaN(priceValue) || priceValue <= 0) {
+      // Robust price parsing from spreadsheet
+      const cleanedPrice = selectedPackage.price.replace(/[^\d.,]/g, "");
+      const basePrice = cleanedPrice.includes(",") && cleanedPrice.indexOf(",") > cleanedPrice.indexOf(".") 
+        ? parseFloat(cleanedPrice.replace(/\./g, "").replace(",", "."))
+        : parseFloat(cleanedPrice.replace(/,/g, ""));
+
+      if (isNaN(basePrice) || basePrice <= 0) {
         toast.error("Erro ao processar o preço do pacote.");
         setIsGenerating(false);
         return;
       }
+
+      const priceValue = selectedPackage.name === "Pacote 3" ? quantity * basePrice : basePrice;
 
       console.log("DEBUG: Requesting PIX generation for", selectedPackage.name, "Amount:", priceValue);
       const response = await axios.post("/api/pix/generate", { 
         amount: priceValue, 
         packageId: selectedPackage.name === "Pacote 3" ? `Pacote 3 (${quantity} perfis)` : selectedPackage.name,
         customer: customerData,
-        userId: user.uid
+        userId: user?.uid || "guest"
       });
       
       const data = response.data;

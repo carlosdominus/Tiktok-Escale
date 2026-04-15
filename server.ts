@@ -124,7 +124,7 @@ app.get("/api/debug", async (req, res) => {
 // API to fetch accounts from Sheet 1
 app.get("/api/accounts", async (req, res) => {
   try {
-    const sheetName = encodeURIComponent("Página1");
+    const sheetName = encodeURIComponent("BCs");
     const response = await axios.get(
       `https://docs.google.com/spreadsheets/d/${ACCOUNTS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${sheetName}`
     );
@@ -330,7 +330,7 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
           if (sheets) {
             const sheetResponse = await sheets.spreadsheets.values.get({
               spreadsheetId: ACCOUNTS_SHEET_ID,
-              range: "'Página1'!A:D",
+              range: "'BCs'!A:D",
             });
 
             const rows = sheetResponse.data.values || [];
@@ -370,7 +370,7 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
                 for (const row of selectedRows) {
                   await sheets.spreadsheets.values.update({
                     spreadsheetId: ACCOUNTS_SHEET_ID,
-                    range: `'Página1'!D${row.index}`,
+                    range: `'BCs'!D${row.index}`,
                     valueInputOption: 'RAW',
                     requestBody: { values: [["vendida"]] }
                   });

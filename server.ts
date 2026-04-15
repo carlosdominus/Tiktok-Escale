@@ -159,6 +159,13 @@ app.get("/api/debug", async (req, res) => {
         <h1>DominusScale Debug Panel</h1>
         
         <div class="card">
+          <h2>Configuração de Webhook</h2>
+          <p>Para que o pagamento seja automático, você <b>precisa</b> configurar esta URL no painel da Abacate Pay:</p>
+          <pre style="background:#e9ecef;color:#495057;border:1px solid #ced4da">https://tiktok-escale.vercel.app/api/webhook/abacatepay</pre>
+          <p><small>⚠️ Se esta URL não estiver lá, o site nunca saberá que o PIX foi pago sozinho.</small></p>
+        </div>
+
+        <div class="card">
           <h2>Status do Sistema</h2>
           <pre>${JSON.stringify({ firebase: status.firebase, sheets: status.sheets, config: status.config, env: status.env }, null, 2)}</pre>
         </div>

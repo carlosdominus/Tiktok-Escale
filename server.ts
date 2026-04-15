@@ -241,7 +241,7 @@ app.get("/api/debug", async (req, res) => {
   `);
 });
 
-// Force approve endpoint
+// Force approve endpoint with delivery
 app.post("/api/force-approve", async (req, res) => {
   const { saleId } = req.body;
   if (!saleId) return res.status(400).json({ error: "Missing saleId" });
@@ -250,20 +250,77 @@ app.post("/api/force-approve", async (req, res) => {
     const saleRef = db.collection("sales").doc(saleId);
     const snap = await saleRef.get();
     if (!snap.exists) return res.status(404).json({ error: "Sale not found" });
+    
+    const saleData = snap.data();
+    if (saleData.status === "paid") return res.json({ message: "Este pedido já está pago." });
+
+    let accountsText = "Aprovado manualmente. Contas entregues via painel.";
+    
+    // Try to deliver accounts from sheet
+    try {
+      const sheets = await getSheetsClient();
+      if (sheets) {
+        const sheetResponse = await sheets.spreadsheets.values.get({
+          spreadsheetId: ACCOUNTS_SHEET_ID,
+          range: "'BCs'!A:D",
+        });
+
+        const rows = sheetResponse.data.values || [];
+        const headers = rows[0] || [];
+        const emailIdx = headers.indexOf("Email outlook");
+        const statusIdx = headers.indexOf("Status");
+        const senhaIdx = headers.indexOf("Senha");
+
+        if (emailIdx !== -1 && statusIdx !== -1) {
+          let countToDeliver = 1;
+          const pkgId = saleData.packageId || "";
+          if (pkgId.includes("Pacote 1")) countToDeliver = 1;
+          else if (pkgId.includes("Pacote 2")) countToDeliver = 3;
+          else if (pkgId.includes("Pacote 3")) {
+            const match = pkgId.match(/\d+/);
+            if (match) countToDeliver = parseInt(match[0]);
+          }
+
+          const selectedRows = [];
+          for (let i = 1; i < rows.length; i++) {
+            if (selectedRows.length >= countToDeliver) break;
+            const row = rows[i];
+            if (row[statusIdx]?.trim().toLowerCase() === "à venda") {
+              selectedRows.push({ index: i + 1, User: row[emailIdx], Senha: row[senhaIdx] || "N/A" });
+            }
+          }
+
+          if (selectedRows.length > 0) {
+            for (const row of selectedRows) {
+              await sheets.spreadsheets.values.update({
+                spreadsheetId: ACCOUNTS_SHEET_ID,
+                range: `'BCs'!D${row.index}`,
+                valueInputOption: 'RAW',
+                requestBody: { values: [["vendida"]] }
+              });
+            }
+            accountsText = selectedRows.map(r => `User: ${r.User} | Senha: ${r.Senha}`).join("\n");
+          }
+        }
+      }
+    } catch (sheetErr: any) {
+      console.error("Manual Approval Sheet Error:", sheetErr.message);
+      accountsText = "Aprovado! (Erro na planilha: Entrega manual necessária)";
+    }
 
     await saleRef.update({
       status: "paid",
       paidAt: new Date().toISOString(),
-      accounts: "Aprovado manualmente via Painel de Debug."
+      accounts: accountsText
     });
 
-    res.json({ message: "Pedido aprovado com sucesso!" });
+    res.json({ message: "Pedido aprovado e contas selecionadas!", accounts: accountsText });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// Manual sync endpoint
+// Manual sync endpoint - More aggressive
 app.post("/api/sync-orders", async (req, res) => {
   const results: any[] = [];
   const apiKey = process.env.ABACATE_PAY_API_KEY;
@@ -271,7 +328,6 @@ app.post("/api/sync-orders", async (req, res) => {
   if (!apiKey) return res.status(500).json({ error: "ABACATE_PAY_API_KEY not configured" });
 
   try {
-    // Fetch last 50 billings from Abacate Pay
     const response = await axios.get("https://api.abacatepay.com/v1/billing/list", {
       headers: { "Authorization": `Bearer ${apiKey}` }
     });
@@ -281,24 +337,26 @@ app.post("/api/sync-orders", async (req, res) => {
     
     for (const doc of pendingSales.docs) {
       const saleData = doc.data();
-      const externalId = saleData.externalId;
+      const extId = saleData.externalId;
 
-      // Find matching billing by ID or PIX ID
-      const matchingBilling = billings.find((b: any) => 
-        b.id === externalId || 
-        (b.pix && b.pix.id === externalId) ||
-        (b.metadata && b.metadata.saleId === doc.id)
-      );
+      // Try to find by ANY possible ID match
+      const match = billings.find((b: any) => {
+        const idMatch = b.id === extId;
+        const pixIdMatch = b.pix && b.pix.id === extId;
+        const metaMatch = b.metadata && b.metadata.saleId === doc.id;
+        // Also check if the amount and customer email match as a last resort
+        const emailMatch = b.customer?.email === saleData.customer?.email;
+        const amountMatch = Math.abs(b.amount - (saleData.amount * 100)) < 10;
+        
+        return idMatch || pixIdMatch || metaMatch || (emailMatch && amountMatch);
+      });
       
-      if (matchingBilling && (matchingBilling.status === "PAID" || matchingBilling.status === "CONFIRMED")) {
-        await doc.ref.update({
-          status: "paid",
-          paidAt: new Date().toISOString(),
-          accounts: "Pagamento confirmado via sincronização automática."
-        });
+      if (match && (match.status === "PAID" || match.status === "CONFIRMED")) {
+        // Use the force-approve logic internally
+        await axios.post(`${req.protocol}://${req.get('host')}/api/force-approve`, { saleId: doc.id });
         results.push({ id: doc.id, status: "UPDATED_TO_PAID" });
       } else {
-        results.push({ id: doc.id, status: matchingBilling ? matchingBilling.status : "NOT_FOUND_IN_RECENT_API_LIST" });
+        results.push({ id: doc.id, status: match ? match.status : "NOT_FOUND" });
       }
     }
     res.json({ message: "Sync complete", results });

@@ -147,7 +147,8 @@ export default function App() {
           axios.get("/api/accounts")
         ]);
         setPackages(Array.isArray(pkgRes.data) ? pkgRes.data : []);
-        setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
+        const allAccounts = Array.isArray(accRes.data) ? accRes.data : [];
+        setAccounts(allAccounts.filter((acc: any) => acc.Status === "à venda"));
       } catch (error) {
         console.error("Error fetching data:", error);
         toast.error("Erro ao carregar informações. Tente novamente.");

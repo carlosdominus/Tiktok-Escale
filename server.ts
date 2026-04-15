@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import axios from "axios";
 import { parse } from "csv-parse/sync";
 import admin from "firebase-admin";
+import { google } from "googleapis";
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -32,6 +33,23 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+// Helper for Google Sheets Auth
+async function getSheetsClient() {
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
+    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) 
+    : null;
+    
+  if (!serviceAccount) return null;
+
+  const auth = new google.auth.JWT({
+    email: serviceAccount.client_email,
+    key: serviceAccount.private_key,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  });
+  
+  return google.sheets({ version: 'v4', auth });
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -52,7 +70,17 @@ app.get("/api/accounts", async (req, res) => {
       columns: true,
       skip_empty_lines: true,
     });
-    res.json(records);
+    
+    // Normalize keys to match frontend expectations
+    const normalized = records.map((r: any) => ({
+      User: r["Email outlook"] || r["User"],
+      Senha: r["Senha"],
+      Seguidores: r["Seguidores"] || "0",
+      Curtidas: r["Curtidas"] || "0",
+      Status: r["Status"]
+    }));
+    
+    res.json(normalized);
   } catch (error: any) {
     console.error("Error fetching accounts:", error.message);
     res.status(500).json({ error: "Failed to fetch accounts", details: error.message });
@@ -206,14 +234,24 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
         if (saleSnap.exists && saleSnap.data()?.status !== "paid") {
           const saleData = saleSnap.data();
           
-          // 1. Fetch accounts from sheet
-          const accountsResponse = await axios.get(
-            `https://docs.google.com/spreadsheets/d/${ACCOUNTS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent("Página1")}`
-          );
-          const allAccounts = parse(accountsResponse.data, { columns: true, skip_empty_lines: true });
+          // 1. Fetch ALL accounts from sheet using Google Sheets API to get row indices
+          const sheets = await getSheetsClient();
+          if (!sheets) throw new Error("Google Sheets client not initialized");
+
+          const sheetResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: ACCOUNTS_SHEET_ID,
+            range: 'Página1!A:D', // Columns A to D
+          });
+
+          const rows = sheetResponse.data.values || [];
+          const headers = rows[0] || [];
           
+          // Find column indices
+          const emailIdx = headers.indexOf("Email outlook");
+          const statusIdx = headers.indexOf("Status");
+          const senhaIdx = headers.indexOf("Senha");
+
           // 2. Determine how many accounts to deliver
-          // We'll try to parse the package name or use a default
           let countToDeliver = 1;
           if (saleData?.packageId.includes("Pacote 1")) countToDeliver = 1;
           else if (saleData?.packageId.includes("Pacote 2")) countToDeliver = 3;
@@ -222,26 +260,58 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
             if (match) countToDeliver = parseInt(match[0]);
           }
 
-          // 3. Get available accounts (not already sold)
-          const soldSalesSnap = await db.collection("sales").where("status", "==", "paid").get();
-          const soldAccountsText = soldSalesSnap.docs.map(d => d.data().accounts || "").join("\n");
-          
-          const availableAccounts = allAccounts.filter((acc: any) => {
-            const accText = `${acc.User}:${acc.Senha}`;
-            return !soldAccountsText.includes(accText);
-          });
+          // 3. Select available accounts (Status === "à venda")
+          const selectedRows: { index: number, data: any }[] = [];
+          for (let i = 1; i < rows.length; i++) {
+            if (selectedRows.length >= countToDeliver) break;
+            
+            const row = rows[i];
+            const status = row[statusIdx];
+            
+            if (status === "à venda") {
+              selectedRows.push({
+                index: i + 1, // Sheets is 1-indexed
+                data: {
+                  User: row[emailIdx],
+                  Senha: row[senhaIdx],
+                  Status: row[statusIdx]
+                }
+              });
+            }
+          }
 
-          const selectedAccounts = availableAccounts.slice(0, countToDeliver);
-          const accountsText = selectedAccounts.map((acc: any) => `User: ${acc.User} | Senha: ${acc.Senha} | Seguidores: ${acc.Seguidores}`).join("\n");
+          if (selectedRows.length === 0) {
+            console.error("CRITICAL: No accounts available for sale!");
+            await saleRef.update({
+              status: "paid",
+              paidAt: new Date().toISOString(),
+              accounts: "ERRO: Estoque esgotado. Por favor, entre em contato com o suporte para receber suas contas manualmente."
+            });
+            return res.sendStatus(200);
+          }
 
-          // 4. Update sale status and deliver accounts
+          // 4. Mark as "vendida" in Google Sheets
+          for (const row of selectedRows) {
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: ACCOUNTS_SHEET_ID,
+              range: `Página1!D${row.index}`, // Column D is Status
+              valueInputOption: 'RAW',
+              requestBody: {
+                values: [["vendida"]]
+              }
+            });
+          }
+
+          const accountsText = selectedRows.map(r => `User: ${r.data.User} | Senha: ${r.data.Senha}`).join("\n");
+
+          // 5. Update sale status and deliver accounts in Firestore
           await saleRef.update({
             status: "paid",
             paidAt: new Date().toISOString(),
-            accounts: accountsText || "Nenhuma conta disponível no momento. Entre em contato com o suporte."
+            accounts: accountsText
           });
 
-          console.log(`Sale ${saleId} marked as PAID and delivered ${selectedAccounts.length} accounts.`);
+          console.log(`Sale ${saleId} marked as PAID and delivered ${selectedRows.length} accounts. Sheet updated.`);
         }
       } catch (error) {
         console.error("Error processing webhook:", error);

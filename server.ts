@@ -5,7 +5,13 @@ import { fileURLToPath } from "url";
 import axios from "axios";
 import { parse } from "csv-parse/sync";
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import { google } from "googleapis";
+import fs from "fs";
+
+// Load config for fallback
+const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+const appConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -16,22 +22,23 @@ if (!admin.apps.length) {
 
     if (serviceAccount) {
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
       });
       console.log("Firebase Admin initialized with service account.");
     } else {
-      // Fallback for local development if project ID is available
       admin.initializeApp({
-        projectId: "tiktok-escale" // Replace with your actual project ID if known
+        projectId: appConfig.projectId || "gen-lang-client-0493400479"
       });
-      console.log("Firebase Admin initialized with project ID only.");
+      console.log("Firebase Admin initialized with project ID fallback.");
     }
   } catch (error) {
     console.error("Error initializing Firebase Admin:", error);
   }
 }
 
-const db = admin.firestore();
+// Ensure Firestore uses the correct database ID if provided in config
+const db = getFirestore(admin.app(), appConfig.firestoreDatabaseId || undefined);
 
 // Helper for Google Sheets Auth
 async function getSheetsClient() {
@@ -145,7 +152,13 @@ app.post("/api/pix/generate", async (req, res) => {
     const numericAmountCents = Math.round(numericAmount * 100);
     
     // Create a pending sale in Firestore first
-    const saleRef = db.collection("sales").doc();
+    let saleRef;
+    try {
+      saleRef = db.collection("sales").doc();
+    } catch (fsError: any) {
+      console.error("FIRESTORE_INIT_ERROR:", fsError.message);
+      return res.status(500).json({ error: "Erro ao acessar banco de dados", details: fsError.message });
+    }
     const saleId = saleRef.id;
 
     // Using pixQrCode/create for direct PIX

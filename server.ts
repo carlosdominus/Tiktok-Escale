@@ -16,9 +16,18 @@ const appConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configP
 // Initialize Firebase Admin
 if (!admin.apps.length) {
   try {
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
-      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) 
-      : null;
+    const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    let serviceAccount = null;
+    
+    if (rawServiceAccount) {
+      // Handle potential newline issues in environment variables
+      try {
+        serviceAccount = JSON.parse(rawServiceAccount);
+      } catch (e) {
+        // If it fails, try replacing escaped newlines
+        serviceAccount = JSON.parse(rawServiceAccount.replace(/\\n/g, '\n'));
+      }
+    }
 
     if (serviceAccount) {
       admin.initializeApp({

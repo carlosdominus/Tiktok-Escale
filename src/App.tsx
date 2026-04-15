@@ -94,6 +94,18 @@ export default function App() {
     }
   }, [user, view]);
 
+  // Auto-close PIX modal when payment is confirmed
+  useEffect(() => {
+    if (isPixModalOpen && pixData?.txId) {
+      const paidOrder = orders.find(o => o.externalId === pixData.txId && o.status === "paid");
+      if (paidOrder) {
+        setIsPixModalOpen(false);
+        setIsSuccessPage(true);
+        toast.success("Pagamento confirmado! Suas contas foram liberadas.");
+      }
+    }
+  }, [orders, isPixModalOpen, pixData]);
+
   useEffect(() => {
     const handleLocationChange = () => {
       setIsSuccessPage(window.location.pathname === "/success");

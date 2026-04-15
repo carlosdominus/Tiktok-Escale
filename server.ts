@@ -18,6 +18,8 @@ let db: any;
 try {
   if (!admin.apps.length) {
     const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    const projectId = appConfig.projectId || "gen-lang-client-0493400479";
+    
     if (rawServiceAccount) {
       let serviceAccount;
       try {
@@ -26,17 +28,22 @@ try {
         serviceAccount = JSON.parse(rawServiceAccount.replace(/\\n/g, '\n'));
       }
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id || projectId
       });
-      console.log("Firebase Admin: Initialized with Service Account");
+      console.log(`Firebase Admin: Initialized with Service Account for project: ${serviceAccount.project_id || projectId}`);
     } else {
       admin.initializeApp({
-        projectId: appConfig.projectId || "gen-lang-client-0493400479"
+        projectId: projectId
       });
-      console.log("Firebase Admin: Initialized with Project ID (Fallback)");
+      console.log(`Firebase Admin: Initialized with Project ID: ${projectId}`);
     }
   }
-  db = getFirestore(admin.app(), appConfig.firestoreDatabaseId || undefined);
+  
+  // Explicitly use the database ID from config
+  const databaseId = appConfig.firestoreDatabaseId || "(default)";
+  db = getFirestore(admin.app(), databaseId === "(default)" ? undefined : databaseId);
+  console.log(`Firestore: Using database: ${databaseId}`);
 } catch (error) {
   console.error("CRITICAL_FIREBASE_INIT_ERROR:", error);
 }
@@ -81,6 +88,11 @@ app.get("/api/debug", async (req, res) => {
   const status: any = {
     firebase: "Checking...",
     sheets: "Checking...",
+    config: {
+      projectId: appConfig.projectId,
+      databaseId: appConfig.firestoreDatabaseId,
+      adminProjectId: admin.app().options.projectId
+    },
     env: {
       hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
       hasAbacateKey: !!process.env.ABACATE_PAY_API_KEY
@@ -88,8 +100,9 @@ app.get("/api/debug", async (req, res) => {
   };
 
   try {
-    const testDoc = await db.collection("sales").limit(1).get();
-    status.firebase = `OK (${testDoc.size} sales found)`;
+    const salesSnap = await db.collection("sales").get();
+    status.firebase = `OK (${salesSnap.size} sales found in database ${appConfig.firestoreDatabaseId})`;
+    status.recentSales = salesSnap.docs.slice(0, 5).map((d: any) => ({ id: d.id, status: d.data().status, externalId: d.data().externalId }));
   } catch (e: any) {
     status.firebase = `ERROR: ${e.message}`;
   }
@@ -101,24 +114,101 @@ app.get("/api/debug", async (req, res) => {
         spreadsheetId: ACCOUNTS_SHEET_ID,
       });
       const sheetNames = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
-      
-      try {
-        const resp = await sheets.spreadsheets.values.get({
-          spreadsheetId: ACCOUNTS_SHEET_ID,
-          range: `'${sheetNames[0]}'!A1:D1`,
-        });
-        status.sheets = `OK (Sheet: "${sheetNames[0]}", Headers: ${resp.data.values?.[0]?.join(", ")})`;
-      } catch (rangeError: any) {
-        status.sheets = `RANGE_ERROR: ${rangeError.message} (Available sheets: ${sheetNames.join(", ")})`;
-      }
+      const resp = await sheets.spreadsheets.values.get({
+        spreadsheetId: ACCOUNTS_SHEET_ID,
+        range: `'${sheetNames[0]}'!A1:D1`,
+      });
+      status.sheets = `OK (Sheet: "${sheetNames[0]}", Headers: ${resp.data.values?.[0]?.join(", ")})`;
     } else {
       status.sheets = "ERROR: No service account configured";
     }
   } catch (e: any) {
-    status.sheets = `METADATA_ERROR: ${e.message}`;
+    status.sheets = `ERROR: ${e.message}`;
   }
 
-  res.json(status);
+  res.send(`
+    <html>
+      <head><title>DominusScale Debug</title><style>body{font-family:sans-serif;padding:20px;line-height:1.5}pre{background:#f4f4f4;padding:10px;border-radius:5px}button{padding:10px 20px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer}button:hover{background:#0056b3}</style></head>
+      <body>
+        <h1>DominusScale Debug Panel</h1>
+        <pre>${JSON.stringify(status, null, 2)}</pre>
+        <hr/>
+        <h2>Ações Corretivas</h2>
+        <p>Se você pagou e o pedido continua pendente, clique no botão abaixo para forçar uma sincronização com a Abacate Pay.</p>
+        <button onclick="sync()">Sincronizar Pedidos Agora</button>
+        <div id="result" style="margin-top:20px;white-space:pre-wrap"></div>
+        <script>
+          async function sync() {
+            const btn = document.querySelector('button');
+            const resDiv = document.getElementById('result');
+            btn.disabled = true;
+            btn.innerText = 'Sincronizando...';
+            resDiv.innerText = 'Iniciando sincronização...';
+            try {
+              const resp = await fetch('/api/sync-orders', { method: 'POST' });
+              const data = await resp.json();
+              resDiv.innerText = JSON.stringify(data, null, 2);
+            } catch (e) {
+              resDiv.innerText = 'Erro: ' + e.message;
+            } finally {
+              btn.disabled = false;
+              btn.innerText = 'Sincronizar Pedidos Agora';
+            }
+          }
+        </script>
+      </body>
+    </html>
+  `);
+});
+
+// Manual sync endpoint
+app.post("/api/sync-orders", async (req, res) => {
+  const results: any[] = [];
+  const apiKey = process.env.ABACATE_PAY_API_KEY;
+
+  if (!apiKey) {
+    return res.status(500).json({ error: "ABACATE_PAY_API_KEY not configured" });
+  }
+
+  try {
+    const pendingSales = await db.collection("sales").where("status", "==", "pending").get();
+    
+    for (const doc of pendingSales.docs) {
+      const saleData = doc.data();
+      const externalId = saleData.externalId;
+
+      if (!externalId) continue;
+
+      try {
+        // Check status in Abacate Pay
+        const response = await axios.get(`https://api.abacatepay.com/v1/billing/list?id=${externalId}`, {
+          headers: { "Authorization": `Bearer ${apiKey}` }
+        });
+
+        const billing = response.data.data.find((b: any) => b.id === externalId);
+        
+        if (billing && (billing.status === "PAID" || billing.status === "CONFIRMED")) {
+          // Trigger the same logic as webhook
+          console.log(`Manual Sync: Found PAID billing for sale ${doc.id}. Updating...`);
+          
+          // Simplified delivery for manual sync
+          await doc.ref.update({
+            status: "paid",
+            paidAt: new Date().toISOString(),
+            accounts: "Pagamento confirmado via sincronização manual. Verifique sua planilha ou contate o suporte."
+          });
+          results.push({ id: doc.id, status: "UPDATED_TO_PAID" });
+        } else {
+          results.push({ id: doc.id, status: billing ? billing.status : "NOT_FOUND_IN_API" });
+        }
+      } catch (e: any) {
+        results.push({ id: doc.id, error: e.message });
+      }
+    }
+    res.json({ message: "Sync complete", results });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // API to fetch accounts from Sheet 1

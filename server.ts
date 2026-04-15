@@ -100,9 +100,19 @@ app.get("/api/debug", async (req, res) => {
   };
 
   try {
-    const salesSnap = await db.collection("sales").get();
-    status.firebase = `OK (${salesSnap.size} sales found in database ${appConfig.firestoreDatabaseId})`;
-    status.recentSales = salesSnap.docs.slice(0, 5).map((d: any) => ({ id: d.id, status: d.data().status, externalId: d.data().externalId }));
+    const salesSnap = await db.collection("sales").orderBy("createdAt", "desc").limit(10).get();
+    status.firebase = `OK (${salesSnap.size} recent sales found)`;
+    status.recentSales = salesSnap.docs.map((d: any) => ({ 
+      id: d.id, 
+      status: d.data().status, 
+      externalId: d.data().externalId,
+      package: d.data().packageId,
+      amount: d.data().amount,
+      createdAt: d.data().createdAt
+    }));
+
+    const logsSnap = await db.collection("webhook_logs").orderBy("timestamp", "desc").limit(5).get();
+    status.webhookLogs = logsSnap.docs.map((d: any) => d.data());
   } catch (e: any) {
     status.firebase = `ERROR: ${e.message}`;
   }
@@ -128,31 +138,101 @@ app.get("/api/debug", async (req, res) => {
 
   res.send(`
     <html>
-      <head><title>DominusScale Debug</title><style>body{font-family:sans-serif;padding:20px;line-height:1.5}pre{background:#f4f4f4;padding:10px;border-radius:5px}button{padding:10px 20px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer}button:hover{background:#0056b3}</style></head>
+      <head>
+        <title>DominusScale Debug</title>
+        <style>
+          body{font-family:sans-serif;padding:20px;line-height:1.5;background:#f8f9fa}
+          pre{background:#212529;color:#f8f9fa;padding:15px;border-radius:8px;overflow:auto;max-height:400px}
+          .card{background:white;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);margin-bottom:20px}
+          button{padding:10px 20px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:bold}
+          button:hover{background:#0056b3}
+          button.danger{background:#dc3545}
+          button.danger:hover{background:#a71d2a}
+          table{width:100%;border-collapse:collapse;margin-top:10px}
+          th,td{padding:12px;text-align:left;border-bottom:1px solid #dee2e6}
+          th{background:#f1f3f5}
+          .status-paid{color:#28a745;font-weight:bold}
+          .status-pending{color:#ffc107;font-weight:bold}
+        </style>
+      </head>
       <body>
         <h1>DominusScale Debug Panel</h1>
-        <pre>${JSON.stringify(status, null, 2)}</pre>
-        <hr/>
-        <h2>Ações Corretivas</h2>
-        <p>Se você pagou e o pedido continua pendente, clique no botão abaixo para forçar uma sincronização com a Abacate Pay.</p>
-        <button onclick="sync()">Sincronizar Pedidos Agora</button>
-        <div id="result" style="margin-top:20px;white-space:pre-wrap"></div>
+        
+        <div class="card">
+          <h2>Status do Sistema</h2>
+          <pre>${JSON.stringify({ firebase: status.firebase, sheets: status.sheets, config: status.config, env: status.env }, null, 2)}</pre>
+        </div>
+
+        <div class="card">
+          <h2>Ações Globais</h2>
+          <button onclick="sync()">Sincronizar com Abacate Pay (Auto)</button>
+          <div id="sync-result" style="margin-top:10px;white-space:pre-wrap;font-size:0.9em"></div>
+        </div>
+
+        <div class="card">
+          <h2>Vendas Recentes</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>ID Interno</th>
+                <th>Data</th>
+                <th>Pacote</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>ID Abacate</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${status.recentSales?.map((s: any) => `
+                <tr>
+                  <td>${s.id}</td>
+                  <td>${new Date(s.createdAt).toLocaleString()}</td>
+                  <td>${s.package}</td>
+                  <td>R$ ${s.amount}</td>
+                  <td class="status-${s.status}">${s.status.toUpperCase()}</td>
+                  <td><code>${s.externalId}</code></td>
+                  <td>
+                    ${s.status === 'pending' ? `<button class="danger" onclick="forceApprove('${s.id}')">Aprovar Manual</button>` : '-'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h2>Últimos Webhooks Recebidos</h2>
+          <pre>${JSON.stringify(status.webhookLogs, null, 2)}</pre>
+        </div>
+
         <script>
           async function sync() {
-            const btn = document.querySelector('button');
-            const resDiv = document.getElementById('result');
-            btn.disabled = true;
-            btn.innerText = 'Sincronizando...';
-            resDiv.innerText = 'Iniciando sincronização...';
+            const resDiv = document.getElementById('sync-result');
+            resDiv.innerText = 'Sincronizando...';
             try {
               const resp = await fetch('/api/sync-orders', { method: 'POST' });
               const data = await resp.json();
               resDiv.innerText = JSON.stringify(data, null, 2);
+              setTimeout(() => location.reload(), 3000);
             } catch (e) {
               resDiv.innerText = 'Erro: ' + e.message;
-            } finally {
-              btn.disabled = false;
-              btn.innerText = 'Sincronizar Pedidos Agora';
+            }
+          }
+
+          async function forceApprove(id) {
+            if(!confirm('Tem certeza que deseja aprovar este pedido manualmente?')) return;
+            try {
+              const resp = await fetch('/api/force-approve', { 
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ saleId: id })
+              });
+              const data = await resp.json();
+              alert(data.message || data.error);
+              location.reload();
+            } catch (e) {
+              alert('Erro: ' + e.message);
             }
           }
         </script>
@@ -161,48 +241,64 @@ app.get("/api/debug", async (req, res) => {
   `);
 });
 
+// Force approve endpoint
+app.post("/api/force-approve", async (req, res) => {
+  const { saleId } = req.body;
+  if (!saleId) return res.status(400).json({ error: "Missing saleId" });
+
+  try {
+    const saleRef = db.collection("sales").doc(saleId);
+    const snap = await saleRef.get();
+    if (!snap.exists) return res.status(404).json({ error: "Sale not found" });
+
+    await saleRef.update({
+      status: "paid",
+      paidAt: new Date().toISOString(),
+      accounts: "Aprovado manualmente via Painel de Debug."
+    });
+
+    res.json({ message: "Pedido aprovado com sucesso!" });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Manual sync endpoint
 app.post("/api/sync-orders", async (req, res) => {
   const results: any[] = [];
   const apiKey = process.env.ABACATE_PAY_API_KEY;
 
-  if (!apiKey) {
-    return res.status(500).json({ error: "ABACATE_PAY_API_KEY not configured" });
-  }
+  if (!apiKey) return res.status(500).json({ error: "ABACATE_PAY_API_KEY not configured" });
 
   try {
+    // Fetch last 50 billings from Abacate Pay
+    const response = await axios.get("https://api.abacatepay.com/v1/billing/list", {
+      headers: { "Authorization": `Bearer ${apiKey}` }
+    });
+
+    const billings = response.data.data || [];
     const pendingSales = await db.collection("sales").where("status", "==", "pending").get();
     
     for (const doc of pendingSales.docs) {
       const saleData = doc.data();
       const externalId = saleData.externalId;
 
-      if (!externalId) continue;
-
-      try {
-        // Check status in Abacate Pay
-        const response = await axios.get(`https://api.abacatepay.com/v1/billing/list?id=${externalId}`, {
-          headers: { "Authorization": `Bearer ${apiKey}` }
+      // Find matching billing by ID or PIX ID
+      const matchingBilling = billings.find((b: any) => 
+        b.id === externalId || 
+        (b.pix && b.pix.id === externalId) ||
+        (b.metadata && b.metadata.saleId === doc.id)
+      );
+      
+      if (matchingBilling && (matchingBilling.status === "PAID" || matchingBilling.status === "CONFIRMED")) {
+        await doc.ref.update({
+          status: "paid",
+          paidAt: new Date().toISOString(),
+          accounts: "Pagamento confirmado via sincronização automática."
         });
-
-        const billing = response.data.data.find((b: any) => b.id === externalId);
-        
-        if (billing && (billing.status === "PAID" || billing.status === "CONFIRMED")) {
-          // Trigger the same logic as webhook
-          console.log(`Manual Sync: Found PAID billing for sale ${doc.id}. Updating...`);
-          
-          // Simplified delivery for manual sync
-          await doc.ref.update({
-            status: "paid",
-            paidAt: new Date().toISOString(),
-            accounts: "Pagamento confirmado via sincronização manual. Verifique sua planilha ou contate o suporte."
-          });
-          results.push({ id: doc.id, status: "UPDATED_TO_PAID" });
-        } else {
-          results.push({ id: doc.id, status: billing ? billing.status : "NOT_FOUND_IN_API" });
-        }
-      } catch (e: any) {
-        results.push({ id: doc.id, error: e.message });
+        results.push({ id: doc.id, status: "UPDATED_TO_PAID" });
+      } else {
+        results.push({ id: doc.id, status: matchingBilling ? matchingBilling.status : "NOT_FOUND_IN_RECENT_API_LIST" });
       }
     }
     res.json({ message: "Sync complete", results });
@@ -378,6 +474,18 @@ app.post("/api/pix/generate", async (req, res) => {
 // Webhook for Abacate Pay
 app.post("/api/webhook/abacatepay", async (req, res) => {
   const event = req.body;
+  
+  // Log webhook to Firestore for debugging
+  try {
+    await db.collection("webhook_logs").add({
+      timestamp: new Date().toISOString(),
+      event: event.event,
+      payload: event
+    });
+  } catch (logErr) {
+    console.error("Failed to log webhook:", logErr);
+  }
+
   console.log("WEBHOOK_RECEIVED:", JSON.stringify(event, null, 2));
 
   const isPaid = event.event === "billing.paid" || event.event === "pix.paid" || event.event === "billing.confirmed";

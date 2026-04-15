@@ -15,7 +15,11 @@ import {
   CreditCard,
   ExternalLink,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  ShoppingBag,
+  ArrowLeft,
+  Download,
+  Check
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QRCode from "qrcode";
-import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, db, doc, setDoc, getDoc, updateDoc } from "./firebase";
+import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, db, doc, setDoc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy } from "./firebase";
 import { User } from "firebase/auth";
 
 interface PackageData {
@@ -58,6 +62,8 @@ export default function App() {
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [view, setView] = useState<"home" | "orders">("home");
+  const [orders, setOrders] = useState<any[]>([]);
   const [isSuccessPage, setIsSuccessPage] = useState(window.location.pathname === "/success");
   const [customerData, setCustomerData] = useState({
     name: "",
@@ -67,6 +73,26 @@ export default function App() {
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [quantity, setQuantity] = useState(5);
+
+  useEffect(() => {
+    if (user && view === "orders") {
+      const q = query(
+        collection(db, "sales"),
+        where("userId", "==", user.uid),
+        orderBy("createdAt", "desc")
+      );
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const ordersData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setOrders(ordersData);
+      });
+      
+      return () => unsubscribe();
+    }
+  }, [user, view]);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -223,13 +249,16 @@ export default function App() {
         return;
       }
 
+      console.log("DEBUG: Requesting PIX generation for", selectedPackage.name, "Amount:", priceValue);
       const response = await axios.post("/api/pix/generate", { 
         amount: priceValue, 
         packageId: selectedPackage.name === "Pacote 3" ? `Pacote 3 (${quantity} perfis)` : selectedPackage.name,
-        customer: customerData
+        customer: customerData,
+        userId: user.uid
       });
       
       const data = response.data;
+      console.log("DEBUG: PIX Response received:", data);
 
       // Save customer data to Firestore for future use
       if (user) {
@@ -244,6 +273,7 @@ export default function App() {
       
       // Handle PIX data response
       if (data.pixCode && data.pixCode.startsWith("http")) {
+        console.log("DEBUG: Handling as Checkout URL");
         // For checkout URLs, we'll show a button to open it
         const qrCodeUrl = await QRCode.toDataURL(data.pixCode);
         setPixData({
@@ -252,10 +282,12 @@ export default function App() {
           isUrl: true
         });
       } else if (data.pixCode) {
+        console.log("DEBUG: Handling as Direct PIX");
         let qrCodeUrl = data.qrCode;
         
         // If the API didn't return a QR code image, generate one from the PIX code
         if (!qrCodeUrl) {
+          console.log("DEBUG: Generating QR Code locally from pixCode");
           qrCodeUrl = await QRCode.toDataURL(data.pixCode);
         } else if (!qrCodeUrl.startsWith("data:")) {
           // Ensure base64 has the correct prefix
@@ -271,10 +303,10 @@ export default function App() {
         throw new Error("O servidor não retornou um código PIX válido.");
       }
     } catch (error: any) {
-      console.error("Error generating PIX:", error);
+      console.error("CRITICAL: Error generating PIX:", error);
       const errorData = error.response?.data;
       const errorMsg = errorData?.details || errorData?.error || error.message || "Erro ao gerar pagamento. Tente novamente.";
-      toast.error(errorMsg, { duration: 5000 });
+      toast.error(errorMsg, { duration: 8000 });
     } finally {
       setIsGenerating(false);
     }
@@ -353,6 +385,19 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            {user && (
+              <Button 
+                variant="ghost" 
+                onClick={() => setView(view === "home" ? "orders" : "home")}
+                className="text-slate-600 font-bold hover:text-emerald-600"
+              >
+                {view === "home" ? (
+                  <><ShoppingBag className="w-5 h-5 mr-2" /> Meus Pedidos</>
+                ) : (
+                  <><ArrowLeft className="w-5 h-5 mr-2" /> Voltar</>
+                )}
+              </Button>
+            )}
             {isAuthLoading ? (
               <Skeleton className="h-10 w-24 rounded-full" />
             ) : user ? (
@@ -393,8 +438,10 @@ export default function App() {
       </nav>
 
       <main>
-        {/* Hero Section */}
-        <section className="relative pt-20 pb-32 overflow-hidden">
+        {view === "home" ? (
+          <>
+            {/* Hero Section */}
+            <section className="relative pt-20 pb-32 overflow-hidden">
           <div className="max-w-7xl mx-auto px-6 relative z-10">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -666,24 +713,158 @@ export default function App() {
           </div>
         </section>
 
-        {/* FAQ / Support */}
-        <section id="suporte" className="py-32 bg-white">
-          <div className="max-w-3xl mx-auto px-6 text-center">
-            <h2 className="text-4xl font-bold text-slate-900 mb-6">Ainda tem dúvidas?</h2>
-            <p className="text-slate-500 text-lg mb-12">Nossa equipe de especialistas está pronta para te ajudar a escalar sua operação.</p>
-            <a 
-              href="https://wa.me/5500000000000" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "rounded-full px-10 h-14 border-slate-200 hover:bg-slate-50 text-slate-700 font-bold"
+            {/* FAQ / Support */}
+            <section id="suporte" className="py-32 bg-white">
+              <div className="max-w-3xl mx-auto px-6 text-center">
+                <h2 className="text-4xl font-bold text-slate-900 mb-6">Ainda tem dúvidas?</h2>
+                <p className="text-slate-500 text-lg mb-12">Nossa equipe de especialistas está pronta para te ajudar a escalar sua operação.</p>
+                <a 
+                  href="https://wa.me/5500000000000" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "lg" }),
+                    "rounded-full px-10 h-14 border-slate-200 hover:bg-slate-50 text-slate-700 font-bold"
+                  )}
+                >
+                  Falar com Suporte no WhatsApp
+                </a>
+              </div>
+            </section>
+          </>
+        ) : (
+          <div className="max-w-4xl mx-auto px-6 py-20 space-y-12">
+            <div className="space-y-4">
+              <h2 className="text-5xl font-black text-slate-900 tracking-tight">Meus Pedidos</h2>
+              <p className="text-lg text-slate-500 font-medium">Acompanhe suas compras e acesse suas contas entregues.</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {orders.length > 0 ? (
+                orders.map((order) => (
+                  <motion.div
+                    key={order.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <Card className="overflow-hidden border-slate-100 hover:border-emerald-200 transition-all group">
+                      <div className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                        <div className="flex items-center gap-6">
+                          <div className={`w-16 h-16 rounded-3xl flex items-center justify-center shrink-0 shadow-lg ${
+                            order.status === "paid" ? "bg-emerald-500 text-white shadow-emerald-500/20" : 
+                            order.status === "pending" ? "bg-amber-500 text-white shadow-amber-500/20" : "bg-slate-500 text-white"
+                          }`}>
+                            <ShoppingBag className="w-8 h-8" />
+                          </div>
+                          <div className="space-y-1">
+                            <h3 className="text-2xl font-black text-slate-900">{order.packageId}</h3>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm text-slate-400 font-bold">
+                                {new Date(order.createdAt).toLocaleDateString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })}
+                              </span>
+                              <Badge className={`rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-widest border-none ${
+                                order.status === "paid" ? "bg-emerald-100 text-emerald-700" : 
+                                order.status === "pending" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"
+                              }`}>
+                                {order.status === "paid" ? "Pago" : order.status === "pending" ? "Pendente" : "Expirado"}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col md:items-end gap-3">
+                          <p className="text-3xl font-black text-slate-900 tracking-tight">R$ {order.amount.toFixed(2)}</p>
+                          {order.status === "paid" && order.accounts ? (
+                            <Button 
+                              size="sm"
+                              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl px-6"
+                              onClick={() => {
+                                const blob = new Blob([order.accounts], { type: 'text/plain' });
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `contas-${order.id}.txt`;
+                                a.click();
+                              }}
+                            >
+                              <Download className="w-4 h-4 mr-2" /> Baixar Contas
+                            </Button>
+                          ) : order.status === "pending" ? (
+                            <Button 
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-200 text-amber-600 hover:bg-amber-50 font-bold rounded-xl px-6"
+                              onClick={() => {
+                                setPixData({
+                                  pixCode: order.pixCode,
+                                  qrCode: "", 
+                                  isUrl: order.pixCode.startsWith("http")
+                                });
+                                setIsPixModalOpen(true);
+                              }}
+                            >
+                              Ver PIX
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                      
+                      {order.status === "paid" && order.accounts && (
+                        <div className="px-8 pb-8">
+                          <div className="bg-slate-50 rounded-[24px] p-6 border border-slate-100 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Suas Contas Entregues:</p>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(order.accounts);
+                                  toast.success("Contas copiadas!");
+                                }}
+                              >
+                                <Copy className="w-3 h-3 mr-1" /> Copiar Tudo
+                              </Button>
+                            </div>
+                            <pre className="text-sm font-mono text-slate-600 whitespace-pre-wrap break-all bg-white p-4 rounded-xl border border-slate-100">
+                              {order.accounts}
+                            </pre>
+                            <div className="flex items-center gap-2 text-emerald-600">
+                              <Check className="w-4 h-4" />
+                              <p className="text-xs font-bold">Contas validadas e prontas para uso.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="text-center py-32 space-y-6 bg-slate-50 rounded-[40px] border border-dashed border-slate-200">
+                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto text-slate-300 shadow-sm">
+                    <ShoppingBag className="w-12 h-12" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-2xl font-black text-slate-900">Nenhum pedido encontrado</p>
+                    <p className="text-slate-500 font-medium">Você ainda não realizou nenhuma compra em nossa plataforma.</p>
+                  </div>
+                  <Button 
+                    onClick={() => setView("home")}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-2xl px-10 h-14 shadow-lg shadow-emerald-500/20"
+                  >
+                    Explorar Planos
+                  </Button>
+                </div>
               )}
-            >
-              Falar com Suporte no WhatsApp
-            </a>
+            </div>
           </div>
-        </section>
+        )}
       </main>
 
       <footer className="bg-slate-50 py-20 border-t border-slate-100">

@@ -13,57 +13,58 @@ import fs from "fs";
 const configPath = path.join(process.cwd(), "firebase-applet-config.json");
 const appConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
 
-// Initialize Firebase Admin
-if (!admin.apps.length) {
-  try {
+// Initialize Firebase Admin with absolute certainty
+let db: any;
+try {
+  if (!admin.apps.length) {
     const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-    let serviceAccount = null;
-    
     if (rawServiceAccount) {
-      // Handle potential newline issues in environment variables
+      let serviceAccount;
       try {
         serviceAccount = JSON.parse(rawServiceAccount);
       } catch (e) {
-        // If it fails, try replacing escaped newlines
         serviceAccount = JSON.parse(rawServiceAccount.replace(/\\n/g, '\n'));
       }
-    }
-
-    if (serviceAccount) {
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
+        credential: admin.credential.cert(serviceAccount)
       });
-      console.log("Firebase Admin initialized with service account.");
+      console.log("Firebase Admin: Initialized with Service Account");
     } else {
       admin.initializeApp({
         projectId: appConfig.projectId || "gen-lang-client-0493400479"
       });
-      console.log("Firebase Admin initialized with project ID fallback.");
+      console.log("Firebase Admin: Initialized with Project ID (Fallback)");
     }
-  } catch (error) {
-    console.error("Error initializing Firebase Admin:", error);
   }
+  db = getFirestore(admin.app(), appConfig.firestoreDatabaseId || undefined);
+} catch (error) {
+  console.error("CRITICAL_FIREBASE_INIT_ERROR:", error);
 }
-
-// Ensure Firestore uses the correct database ID if provided in config
-const db = getFirestore(admin.app(), appConfig.firestoreDatabaseId || undefined);
 
 // Helper for Google Sheets Auth
 async function getSheetsClient() {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
-    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) 
-    : null;
+  try {
+    const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (!rawServiceAccount) return null;
     
-  if (!serviceAccount) return null;
+    let serviceAccount;
+    try {
+      serviceAccount = JSON.parse(rawServiceAccount);
+    } catch (e) {
+      serviceAccount = JSON.parse(rawServiceAccount.replace(/\\n/g, '\n'));
+    }
 
-  const auth = new google.auth.JWT({
-    email: serviceAccount.client_email,
-    key: serviceAccount.private_key,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets']
-  });
-  
-  return google.sheets({ version: 'v4', auth });
+    const auth = new google.auth.JWT({
+      email: serviceAccount.client_email,
+      key: serviceAccount.private_key,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets']
+    });
+    
+    return google.sheets({ version: 'v4', auth });
+  } catch (error) {
+    console.error("SHEETS_AUTH_ERROR:", error);
+    return null;
+  }
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -74,6 +75,42 @@ app.use(express.json());
 
 const PLANS_SHEET_ID = "1fbtsbZOhGR7plw7kRDL3on4v4-MvkXXmKX-k_2pQN1w";
 const ACCOUNTS_SHEET_ID = "1YsqLgZzHPjj_LP9NwYxTeE5X8E0El4Lnu5S5KpMJG2E";
+
+// Debug endpoint to check connections
+app.get("/api/debug", async (req, res) => {
+  const status: any = {
+    firebase: "Checking...",
+    sheets: "Checking...",
+    env: {
+      hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+      hasAbacateKey: !!process.env.ABACATE_PAY_API_KEY
+    }
+  };
+
+  try {
+    const testDoc = await db.collection("sales").limit(1).get();
+    status.firebase = `OK (${testDoc.size} sales found)`;
+  } catch (e: any) {
+    status.firebase = `ERROR: ${e.message}`;
+  }
+
+  try {
+    const sheets = await getSheetsClient();
+    if (sheets) {
+      const resp = await sheets.spreadsheets.values.get({
+        spreadsheetId: ACCOUNTS_SHEET_ID,
+        range: 'Página1!A1:D1',
+      });
+      status.sheets = `OK (Headers: ${resp.data.values?.[0]?.join(", ")})`;
+    } else {
+      status.sheets = "ERROR: No service account configured";
+    }
+  } catch (e: any) {
+    status.sheets = `ERROR: ${e.message}`;
+  }
+
+  res.json(status);
+});
 
 // API to fetch accounts from Sheet 1
 app.get("/api/accounts", async (req, res) => {

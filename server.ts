@@ -313,86 +313,77 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
       if (saleRef && saleData && saleData.status !== "paid") {
         console.log(`Processing payment for Sale ID: ${saleId}`);
         
-        // 1. Fetch ALL accounts from sheet
-        const sheets = await getSheetsClient();
-        if (!sheets) throw new Error("Google Sheets client not initialized (check FIREBASE_SERVICE_ACCOUNT env var)");
-
-        const sheetResponse = await sheets.spreadsheets.values.get({
-          spreadsheetId: ACCOUNTS_SHEET_ID,
-          range: 'Página1!A:D',
-        });
-
-        const rows = sheetResponse.data.values || [];
-        const headers = rows[0] || [];
+        let accountsText = "Contas serão entregues em breve. Verifique seus pedidos.";
         
-        const emailIdx = headers.indexOf("Email outlook");
-        const statusIdx = headers.indexOf("Status");
-        const senhaIdx = headers.indexOf("Senha");
-
-        if (emailIdx === -1 || statusIdx === -1) {
-          throw new Error(`Colunas não encontradas na planilha. Cabeçalhos: ${headers.join(", ")}`);
-        }
-
-        // 2. Determine how many accounts to deliver
-        let countToDeliver = 1;
-        const pkgId = saleData.packageId || "";
-        if (pkgId.includes("Pacote 1")) countToDeliver = 1;
-        else if (pkgId.includes("Pacote 2")) countToDeliver = 3;
-        else if (pkgId.includes("Pacote 3")) {
-          const match = pkgId.match(/\d+/);
-          if (match) countToDeliver = parseInt(match[0]);
-        }
-
-        // 3. Select available accounts
-        const selectedRows: { index: number, data: any }[] = [];
-        for (let i = 1; i < rows.length; i++) {
-          if (selectedRows.length >= countToDeliver) break;
-          
-          const row = rows[i];
-          const status = row[statusIdx]?.trim().toLowerCase();
-          
-          if (status === "à venda") {
-            selectedRows.push({
-              index: i + 1,
-              data: {
-                User: row[emailIdx],
-                Senha: row[senhaIdx] || "N/A"
-              }
-            });
-          }
-        }
-
-        if (selectedRows.length === 0) {
-          console.error("ESTOQUE_ESGOTADO: Nenhuma conta 'à venda' encontrada.");
-          await saleRef.update({
-            status: "paid",
-            paidAt: new Date().toISOString(),
-            accounts: "ERRO: Estoque esgotado. Contate o suporte para entrega manual."
-          });
-        } else {
-          // 4. Mark as "vendida" in Google Sheets
-          console.log(`Marking ${selectedRows.length} accounts as sold in Sheets...`);
-          for (const row of selectedRows) {
-            await sheets.spreadsheets.values.update({
+        // 1. Try to fetch and update Google Sheets, but DON'T block if it fails
+        try {
+          const sheets = await getSheetsClient();
+          if (sheets) {
+            const sheetResponse = await sheets.spreadsheets.values.get({
               spreadsheetId: ACCOUNTS_SHEET_ID,
-              range: `Página1!D${row.index}`,
-              valueInputOption: 'RAW',
-              requestBody: {
-                values: [["vendida"]]
-              }
+              range: 'Página1!A:D',
             });
+
+            const rows = sheetResponse.data.values || [];
+            const headers = rows[0] || [];
+            
+            const emailIdx = headers.indexOf("Email outlook");
+            const statusIdx = headers.indexOf("Status");
+            const senhaIdx = headers.indexOf("Senha");
+
+            if (emailIdx !== -1 && statusIdx !== -1) {
+              // Determine how many accounts to deliver
+              let countToDeliver = 1;
+              const pkgId = saleData.packageId || "";
+              if (pkgId.includes("Pacote 1")) countToDeliver = 1;
+              else if (pkgId.includes("Pacote 2")) countToDeliver = 3;
+              else if (pkgId.includes("Pacote 3")) {
+                const match = pkgId.match(/\d+/);
+                if (match) countToDeliver = parseInt(match[0]);
+              }
+
+              // Select available accounts
+              const selectedRows: { index: number, data: any }[] = [];
+              for (let i = 1; i < rows.length; i++) {
+                if (selectedRows.length >= countToDeliver) break;
+                const row = rows[i];
+                const status = row[statusIdx]?.trim().toLowerCase();
+                if (status === "à venda") {
+                  selectedRows.push({
+                    index: i + 1,
+                    data: { User: row[emailIdx], Senha: row[senhaIdx] || "N/A" }
+                  });
+                }
+              }
+
+              if (selectedRows.length > 0) {
+                // Mark as "vendida" in Google Sheets
+                for (const row of selectedRows) {
+                  await sheets.spreadsheets.values.update({
+                    spreadsheetId: ACCOUNTS_SHEET_ID,
+                    range: `Página1!D${row.index}`,
+                    valueInputOption: 'RAW',
+                    requestBody: { values: [["vendida"]] }
+                  });
+                }
+                accountsText = selectedRows.map(r => `User: ${r.data.User} | Senha: ${r.data.Senha}`).join("\n");
+              } else {
+                accountsText = "ERRO: Estoque esgotado na planilha. Entre em contato com o suporte.";
+              }
+            }
           }
-
-          const accountsText = selectedRows.map(r => `User: ${r.data.User} | Senha: ${r.data.Senha}`).join("\n");
-
-          // 5. Update sale status
-          await saleRef.update({
-            status: "paid",
-            paidAt: new Date().toISOString(),
-            accounts: accountsText
-          });
-          console.log(`SUCCESS: Sale ${saleId} updated to PAID.`);
+        } catch (sheetError: any) {
+          console.error("SHEET_UPDATE_FAILED_BUT_CONTINUING:", sheetError.message);
+          accountsText = "Pagamento confirmado! (Erro ao ler planilha: Contate o suporte para receber suas contas)";
         }
+
+        // 2. ALWAYS update sale status to paid in Firestore
+        await saleRef.update({
+          status: "paid",
+          paidAt: new Date().toISOString(),
+          accounts: accountsText
+        });
+        console.log(`SUCCESS: Sale ${saleId} marked as PAID regardless of sheet status.`);
       } else {
         console.log(`Sale not found or already paid. SaleId: ${saleId}, ExternalId: ${externalId}`);
       }

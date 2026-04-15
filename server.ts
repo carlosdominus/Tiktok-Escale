@@ -97,16 +97,25 @@ app.get("/api/debug", async (req, res) => {
   try {
     const sheets = await getSheetsClient();
     if (sheets) {
-      const resp = await sheets.spreadsheets.values.get({
+      const spreadsheet = await sheets.spreadsheets.get({
         spreadsheetId: ACCOUNTS_SHEET_ID,
-        range: "'Página1'!A1:D1",
       });
-      status.sheets = `OK (Headers: ${resp.data.values?.[0]?.join(", ")})`;
+      const sheetNames = spreadsheet.data.sheets?.map(s => s.properties?.title) || [];
+      
+      try {
+        const resp = await sheets.spreadsheets.values.get({
+          spreadsheetId: ACCOUNTS_SHEET_ID,
+          range: `'${sheetNames[0]}'!A1:D1`,
+        });
+        status.sheets = `OK (Sheet: "${sheetNames[0]}", Headers: ${resp.data.values?.[0]?.join(", ")})`;
+      } catch (rangeError: any) {
+        status.sheets = `RANGE_ERROR: ${rangeError.message} (Available sheets: ${sheetNames.join(", ")})`;
+      }
     } else {
       status.sheets = "ERROR: No service account configured";
     }
   } catch (e: any) {
-    status.sheets = `ERROR: ${e.message}`;
+    status.sheets = `METADATA_ERROR: ${e.message}`;
   }
 
   res.json(status);

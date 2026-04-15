@@ -99,7 +99,7 @@ app.get("/api/debug", async (req, res) => {
     if (sheets) {
       const resp = await sheets.spreadsheets.values.get({
         spreadsheetId: ACCOUNTS_SHEET_ID,
-        range: 'Página1!A1:D1',
+        range: "'Página1'!A1:D1",
       });
       status.sheets = `OK (Headers: ${resp.data.values?.[0]?.join(", ")})`;
     } else {
@@ -321,7 +321,7 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
           if (sheets) {
             const sheetResponse = await sheets.spreadsheets.values.get({
               spreadsheetId: ACCOUNTS_SHEET_ID,
-              range: 'Página1!A:D',
+              range: "'Página1'!A:D",
             });
 
             const rows = sheetResponse.data.values || [];
@@ -361,7 +361,7 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
                 for (const row of selectedRows) {
                   await sheets.spreadsheets.values.update({
                     spreadsheetId: ACCOUNTS_SHEET_ID,
-                    range: `Página1!D${row.index}`,
+                    range: `'Página1'!D${row.index}`,
                     valueInputOption: 'RAW',
                     requestBody: { values: [["vendida"]] }
                   });

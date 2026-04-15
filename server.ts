@@ -594,10 +594,17 @@ app.post("/api/webhook/abacatepay", async (req, res) => {
   const isPaid = event.event === "billing.paid" || event.event === "pix.paid" || event.event === "billing.confirmed";
   
   if (isPaid) {
-    const billingData = event.data;
-    const saleIdFromMetadata = billingData.metadata?.saleId;
-    const externalId = billingData.id;
-    const pixId = billingData.pix?.id;
+    const billingData = event.data || {};
+    
+    // Abacate Pay can nest metadata inside pixQrCode or billing
+    const saleIdFromMetadata = billingData.metadata?.saleId || 
+                               billingData.pixQrCode?.metadata?.saleId ||
+                               billingData.billing?.metadata?.saleId;
+                               
+    const externalId = billingData.id || billingData.pixQrCode?.id || billingData.billing?.id;
+    const pixId = billingData.pix?.id || billingData.pixQrCode?.id;
+
+    console.log(`WEBHOOK_LOOKUP: saleId=${saleIdFromMetadata}, extId=${externalId}, pixId=${pixId}`);
 
     try {
       let saleRef;

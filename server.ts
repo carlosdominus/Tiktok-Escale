@@ -173,6 +173,7 @@ app.get("/api/debug", async (req, res) => {
         <div class="card">
           <h2>Ações Globais</h2>
           <button onclick="sync()">Sincronizar com Abacate Pay (Auto)</button>
+          <button onclick="simulateWebhook()" style="background:#6c757d;margin-left:10px">Simular Recebimento de Webhook (Teste)</button>
           <div id="sync-result" style="margin-top:10px;white-space:pre-wrap;font-size:0.9em"></div>
         </div>
 
@@ -214,6 +215,43 @@ app.get("/api/debug", async (req, res) => {
         </div>
 
         <script>
+          async function simulateWebhook() {
+            const resDiv = document.getElementById('sync-result');
+            resDiv.innerText = 'Simulando webhook...';
+            try {
+              // Get the last pending sale ID to simulate
+              const rows = document.querySelectorAll('tr');
+              let lastPending = null;
+              for(const row of rows) {
+                if(row.innerText.includes('PENDING')) {
+                  lastPending = row.querySelector('td').innerText;
+                  break;
+                }
+              }
+
+              if(!lastPending) {
+                alert('Nenhum pedido PENDENTE encontrado para testar.');
+                return;
+              }
+
+              const resp = await fetch('/api/webhook/abacatepay', { 
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                  event: 'billing.paid',
+                  data: {
+                    id: 'simulated_id_' + Date.now(),
+                    metadata: { saleId: lastPending }
+                  }
+                })
+              });
+              resDiv.innerText = 'Simulação enviada! Status: ' + resp.status;
+              setTimeout(() => location.reload(), 2000);
+            } catch (e) {
+              resDiv.innerText = 'Erro na simulação: ' + e.message;
+            }
+          }
+
           async function sync() {
             const resDiv = document.getElementById('sync-result');
             resDiv.innerText = 'Sincronizando...';

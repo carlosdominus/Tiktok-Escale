@@ -75,7 +75,7 @@ export default function App() {
   const [quantity, setQuantity] = useState(5);
 
   useEffect(() => {
-    if (user && view === "orders") {
+    if (user) {
       const q = query(
         collection(db, "sales"),
         where("userId", "==", user.uid),
@@ -92,12 +92,18 @@ export default function App() {
       
       return () => unsubscribe();
     }
-  }, [user, view]);
+  }, [user]);
 
   // Auto-close PIX modal when payment is confirmed
   useEffect(() => {
-    if (isPixModalOpen && pixData?.txId) {
-      const paidOrder = orders.find(o => o.externalId === pixData.txId && o.status === "paid");
+    if (isPixModalOpen && pixData) {
+      // Find the order that matches the current PIX session
+      // We can match by externalId (txId) or by looking for the most recent paid order
+      const paidOrder = orders.find(o => 
+        (o.externalId === pixData.txId || o.pixId === pixData.txId) && 
+        o.status === "paid"
+      );
+
       if (paidOrder) {
         setIsPixModalOpen(false);
         setIsSuccessPage(true);
@@ -288,7 +294,8 @@ export default function App() {
         setPixData({
           pixCode: data.pixCode,
           qrCode: qrCodeUrl,
-          isUrl: true
+          isUrl: true,
+          txId: data.txId
         });
       } else if (data.pixCode) {
         console.log("DEBUG: Handling as Direct PIX");
@@ -306,7 +313,8 @@ export default function App() {
         setPixData({
           pixCode: data.pixCode,
           qrCode: qrCodeUrl,
-          isUrl: false
+          isUrl: false,
+          txId: data.txId
         });
       } else {
         throw new Error("O servidor não retornou um código PIX válido.");
@@ -331,43 +339,80 @@ export default function App() {
   const availableAccountsCount = accounts.filter(a => a.Status === "à venda").length;
 
   if (isSuccessPage) {
+    const lastPaidOrder = orders.find(o => o.status === "paid");
+    
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-white rounded-[40px] p-12 shadow-2xl shadow-slate-200 text-center"
+          className="max-w-xl w-full bg-white rounded-[40px] p-8 md:p-12 shadow-2xl shadow-slate-200 text-center"
         >
-          <div className="w-24 h-24 bg-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-8">
-            <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+          <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-10 h-10 text-emerald-500" />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 mb-4">Pagamento Confirmado!</h1>
-          <p className="text-slate-500 mb-10 leading-relaxed">
-            Seu pedido foi processado com sucesso. Em instantes você receberá os dados de acesso no seu e-mail e nesta tela.
+          <h1 className="text-3xl font-black text-slate-900 mb-3">Pagamento Confirmado!</h1>
+          <p className="text-slate-500 mb-8 leading-relaxed">
+            Seu pedido foi processado com sucesso. Suas contas já estão disponíveis abaixo e em "Meus Pedidos".
           </p>
           
-          <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-10 text-left">
-            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-4">Seus Acessos</p>
+          <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-8 text-left">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Suas Contas Entregues</p>
+              {lastPaidOrder?.accounts && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[10px] font-black uppercase tracking-widest text-emerald-600"
+                  onClick={() => {
+                    navigator.clipboard.writeText(lastPaidOrder.accounts);
+                    toast.success("Contas copiadas!");
+                  }}
+                >
+                  <Copy className="w-3 h-3 mr-1" /> Copiar
+                </Button>
+              )}
+            </div>
+            
             <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-emerald-500" />
+              {lastPaidOrder?.accounts ? (
+                <pre className="text-xs font-mono text-slate-600 whitespace-pre-wrap break-all bg-white p-4 rounded-xl border border-slate-100 max-h-40 overflow-y-auto">
+                  {lastPaidOrder.accounts}
+                </pre>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-emerald-500 animate-pulse" />
+                  </div>
+                  <span className="text-sm font-medium text-slate-400 italic">Liberando contas no sistema...</span>
                 </div>
-                <span className="text-sm font-medium text-slate-600">Aguardando liberação automática...</span>
-              </div>
+              )}
             </div>
           </div>
 
-          <Button 
-            variant="outline" 
-            className="w-full h-14 rounded-2xl border-slate-200 text-slate-600 font-bold"
-            onClick={() => {
-              window.history.pushState({}, "", "/");
-              setIsSuccessPage(false);
-            }}
-          >
-            Voltar para Início
-          </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Button 
+              className="h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shadow-lg shadow-emerald-500/20"
+              onClick={() => {
+                setIsSuccessPage(false);
+                setView("orders");
+                window.history.pushState({}, "", "/");
+              }}
+            >
+              Ver Meus Pedidos
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-14 rounded-2xl border-slate-200 text-slate-600 font-bold"
+              onClick={() => {
+                window.history.pushState({}, "", "/");
+                setIsSuccessPage(false);
+                setView("home");
+              }}
+            >
+              Voltar para Início
+            </Button>
+          </div>
         </motion.div>
       </div>
     );
@@ -1015,11 +1060,14 @@ export default function App() {
 
                   <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
                     <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                      <Zap className="w-5 h-5 text-blue-600" />
+                      <Zap className="w-5 h-5 text-blue-600 animate-pulse" />
                     </div>
-                    <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                      Após o pagamento, suas contas serão enviadas automaticamente para o seu e-mail e aparecerão aqui.
-                    </p>
+                    <div className="flex-1">
+                      <p className="text-xs text-blue-700 font-bold mb-0.5">Aguardando pagamento...</p>
+                      <p className="text-[10px] text-blue-600 leading-relaxed">
+                        O sistema detectará o pagamento automaticamente e liberará suas contas em segundos.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

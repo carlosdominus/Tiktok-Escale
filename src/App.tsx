@@ -263,10 +263,15 @@ export default function App() {
       toast.success("Login realizado com sucesso!");
     } catch (error: any) {
       console.error("Login error:", error);
-      const errorMessage = error.code === 'auth/unauthorized-domain' 
-        ? "Domínio não autorizado no Firebase. Adicione tiktok-escale.vercel.app no console do Firebase."
-        : `Erro ao fazer login: ${error.message}`;
-      toast.error(errorMessage);
+      let errorMessage = `Erro ao fazer login: ${error.message}`;
+      
+      if (error.code === 'auth/unauthorized-domain') {
+        errorMessage = "Domínio não autorizado no Firebase. Adicione tiktok-escale.vercel.app no console do Firebase.";
+      } else if (error.code === 'auth/network-request-failed' || error.message.includes('network-request-failed')) {
+        errorMessage = "Conexão falhou. Verifique sua internet ou se há algum bloqueador de anúncios (AdBlock) ativo.";
+      }
+      
+      toast.error(errorMessage, { duration: 6000 });
     }
   };
 
@@ -422,57 +427,66 @@ export default function App() {
     const lastPaidOrder = orders.find(o => o.status === "paid");
     
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6 selection:bg-tiktok-red selection:text-white">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4 md:p-6 selection:bg-tiktok-red selection:text-white relative overflow-hidden">
+        {/* Aesthetic Background for Success Page */}
+        <div className="absolute top-0 left-0 w-full h-full bg-mesh pointer-events-none opacity-50" />
+        <div className="absolute -top-24 -right-24 w-64 h-64 bg-tiktok-cyan/10 blur-[100px] rounded-full" />
+        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-tiktok-red/10 blur-[100px] rounded-full" />
+
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="max-w-xl w-full bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-3xl p-8 md:p-10 shadow-2xl text-center"
+          className="max-w-xl w-full bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-3xl p-6 md:p-10 shadow-2xl text-center relative z-10"
         >
-          <div className="w-16 h-16 bg-tiktok-cyan/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-tiktok-cyan/20">
-            <CheckCircle2 className="w-8 h-8 text-tiktok-cyan" />
+          <div className="w-12 h-12 md:w-16 md:h-16 bg-tiktok-cyan/10 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 border border-tiktok-cyan/20">
+            <CheckCircle2 className="w-6 h-6 md:w-8 md:h-8 text-tiktok-cyan" />
           </div>
-          <h1 className="text-3xl font-black text-white mb-3 italic tracking-tighter uppercase">Arsenal Liberado</h1>
-          <p className="text-white/40 mb-6 leading-relaxed font-medium">
-            Seu pagamento foi confirmado com sucesso. Suas BC's já estão disponíveis para mobilização.
+          <h1 className="text-2xl md:text-3xl font-black text-white mb-2 md:mb-3 italic tracking-tighter uppercase">Arsenal Liberado</h1>
+          <p className="text-white/40 mb-4 md:mb-6 text-sm md:text-base leading-relaxed font-medium">
+            Seu pagamento foi confirmado. Suas BC's já estão disponíveis para mobilização.
           </p>
           
-          <div className="bg-white/5 p-6 rounded-2xl border border-white/5 mb-8 text-left">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white/5 p-4 md:p-6 rounded-2xl border border-white/5 mb-6 md:mb-8 text-left">
+            <div className="flex items-center justify-between mb-3 md:mb-4">
               <p className="text-[9px] uppercase tracking-[0.2em] text-white/20 font-black">Suas BC's Entregues</p>
               {lastPaidOrder?.accounts && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-8 px-4 text-[9px] font-black uppercase tracking-widest text-tiktok-cyan hover:bg-tiktok-cyan/10"
+                  className="h-7 px-3 md:h-8 md:px-4 text-[9px] font-black uppercase tracking-widest text-tiktok-cyan hover:bg-tiktok-cyan/10"
                   onClick={() => {
                     navigator.clipboard.writeText(lastPaidOrder.accounts);
                     toast.success("Copiado!");
                   }}
                 >
-                  <Copy className="w-3.5 h-3.5 mr-2" /> Copiar
+                  <Copy className="w-3 h-3 md:w-3.5 md:h-3.5 mr-1.5" /> Copiar
                 </Button>
               )}
             </div>
             
             <div className="space-y-4">
               {lastPaidOrder?.accounts ? (
-                <pre className="text-xs font-mono text-white/60 whitespace-pre-wrap break-all bg-black/40 p-6 rounded-2xl border border-white/5 max-h-40 overflow-y-auto custom-scrollbar">
+                <pre className="text-[10px] md:text-xs font-mono text-white/60 whitespace-pre-wrap break-all bg-black/40 p-4 md:p-6 rounded-xl md:rounded-2xl border border-white/5 max-h-32 md:max-h-40 overflow-y-auto custom-scrollbar">
                   {lastPaidOrder.accounts}
                 </pre>
               ) : (
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center">
-                    <Zap className="w-5 h-5 text-tiktok-cyan animate-pulse" />
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-tiktok-cyan animate-pulse" />
                   </div>
-                  <span className="text-xs font-medium text-white/20 italic">Liberando BC's no sistema...</span>
+                  <span className="text-[10px] font-medium text-white/20 italic tracking-tight">Liberando BC's no sistema...</span>
                 </div>
               )}
             </div>
+            <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-2">
+              <Check className="w-3 h-3 text-tiktok-cyan" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-tiktok-cyan/50 italic">BC'S VERIFICADAS E PRONTAS.</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <Button 
-              className="h-14 rounded-full bg-tiktok-cyan hover:bg-tiktok-cyan/90 text-black font-black uppercase italic tracking-tighter"
+              className="h-12 md:h-14 rounded-full bg-tiktok-cyan hover:bg-tiktok-cyan/90 text-black font-black uppercase italic tracking-tighter"
               onClick={() => {
                 setIsSuccessPage(false);
                 setView("orders");
@@ -483,7 +497,7 @@ export default function App() {
             </Button>
             <Button 
               variant="outline" 
-              className="h-14 rounded-full border-white/10 text-white/50 hover:text-white font-black uppercase italic tracking-tighter"
+              className="h-12 md:h-14 rounded-full border-white/10 text-white/50 hover:text-white font-black uppercase italic tracking-tighter"
               onClick={() => {
                 window.history.pushState({}, "", "/");
                 setIsSuccessPage(false);
@@ -499,45 +513,49 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-tiktok-red selection:text-white">
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-tiktok-red selection:text-white relative">
       <Toaster position="top-center" richColors theme="dark" />
       
+      {/* Background Decor */}
+      <div className="fixed inset-0 bg-mesh opacity-[0.03] pointer-events-none z-0" />
+      <div className="fixed bottom-0 left-0 w-full h-[50vh] bg-gradient-to-t from-tiktok-red/[0.03] to-transparent pointer-events-none z-0" />
+      <div className="fixed -bottom-48 -right-48 w-96 h-96 bg-tiktok-cyan/[0.05] blur-[150px] rounded-full pointer-events-none z-0" />
       {/* Interactive Retracting Header */}
-      <div className="fixed top-6 left-0 right-0 z-50 px-6">
+      <div className="fixed top-5 md:top-6 left-0 right-0 z-50 px-4 md:px-6">
         <motion.nav 
           style={{ backgroundColor: headerBg, borderColor: headerBorder }}
-          className="max-w-6xl mx-auto h-16 flex items-center border rounded-full backdrop-blur-xl transition-all shadow-2xl"
+          className="max-w-6xl mx-auto h-14 md:h-16 flex items-center border rounded-full backdrop-blur-xl transition-all shadow-2xl"
         >
-          <div className="w-full flex items-center justify-between px-6">
+          <div className="w-full flex items-center justify-between px-4 md:px-6">
           <button 
             onClick={() => { setView("home"); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-            className="flex items-center gap-3 group transition-transform hover:scale-105"
+            className="flex items-center gap-2 md:gap-3 group transition-transform hover:scale-105"
           >
-            <motion.div style={{ scale: headerScale }} className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-tiktok-red rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(255,29,77,0.4)] transition-all group-hover:shadow-[0_0_20px_rgba(255,29,77,0.6)]">
-                <Zap className="text-white w-5 h-5 fill-current" />
+            <motion.div style={{ scale: headerScale }} className="flex items-center gap-2 md:gap-3">
+              <div className="w-8 h-8 md:w-9 md:h-9 bg-tiktok-red rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(255,29,77,0.4)] transition-all group-hover:shadow-[0_0_20px_rgba(255,29,77,0.6)]">
+                <Zap className="text-white w-4 h-4 md:w-5 md:h-5 fill-current" />
               </div>
-              <span className="text-lg font-black italic tracking-tighter text-white">Tiktok<span className="text-tiktok-cyan">Escale</span></span>
+              <span className="hidden md:block text-lg font-black italic tracking-tighter text-white">Tiktok<span className="text-tiktok-cyan">Escale</span></span>
             </motion.div>
           </button>
           
-          <div className="hidden md:flex items-center gap-6 text-[11px] font-bold tracking-widest text-white/50">
-            <button onClick={() => navigateTo("vsl")} className="hover:text-tiktok-red transition-all cursor-pointer">Estratégia</button>
-            <button onClick={() => navigateTo("produtos")} className="hover:text-tiktok-red transition-all cursor-pointer">Escale Agora</button>
-            <button onClick={() => navigateTo("beneficios")} className="hover:text-tiktok-red transition-all cursor-pointer">Vantagens</button>
+          <div className="hidden lg:flex items-center gap-6 text-[11px] font-bold tracking-widest text-white/50">
+            <button onClick={() => navigateTo("vsl")} className="hover:text-tiktok-red transition-all cursor-pointer text-white/40">Estratégia</button>
+            <button onClick={() => navigateTo("produtos")} className="hover:text-tiktok-red transition-all cursor-pointer text-white/40">Escale Agora</button>
+            <button onClick={() => navigateTo("beneficios")} className="hover:text-tiktok-red transition-all cursor-pointer text-white/40">Vantagens</button>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {user && (
               <Button 
                 variant="ghost" 
                 onClick={() => setView(view === "home" ? "orders" : "home")}
-                className="text-white/70 font-bold hover:text-tiktok-cyan"
+                className="text-white/70 font-bold hover:text-tiktok-cyan h-9 px-3 md:h-10 md:px-4 text-xs md:text-sm"
               >
                 {view === "home" ? (
-                  <><ShoppingBag className="w-5 h-5 mr-2" /> Meus Pedidos</>
+                  <><ShoppingBag className="w-4 h-4 md:w-5 md:h-5 md:mr-2" /> <span className="hidden sm:inline">Meus Pedidos</span></>
                 ) : (
-                  <><ArrowLeft className="w-5 h-5 mr-2" /> Voltar</>
+                  <><ArrowLeft className="w-4 h-4 md:w-5 md:h-5 md:mr-2" /> <span className="hidden sm:inline">Voltar</span></>
                 )}
               </Button>
             )}
@@ -560,7 +578,7 @@ export default function App() {
                        <p className="text-sm text-white/50">{user.email}</p>
                      </div>
                      <Button variant="destructive" className="w-full bg-tiktok-red" onClick={handleLogout}>
-                       <LogOut className="w-4 h-4 mr-2" /> Sair
+                       <LogOut className="w-4 h-4 mr-2" /> <span className="text-white font-black italic">Sair</span>
                      </Button>
                    </div>
                  </DialogContent>
@@ -576,22 +594,22 @@ export default function App() {
       </motion.nav>
     </div>
 
-    <main className="pt-20">
+      <main className="pt-10 md:pt-20">
         {view === "home" ? (
           <>
             {/* Elite Hero Section */}
-            <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden px-6">
+            <section className="relative md:min-h-[90vh] min-h-[50vh] flex items-start md:items-center justify-center overflow-hidden px-4 md:px-6 pt-20 md:pt-0">
               {/* Background Accents */}
-              <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-tiktok-red/20 blur-[120px] rounded-full animate-pulse" />
-              <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-tiktok-cyan/10 blur-[120px] rounded-full animate-pulse delay-1000" />
+              <div className="absolute top-1/4 left-1/4 w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-tiktok-red/20 blur-[100px] md:blur-[120px] rounded-full animate-pulse" />
+              <div className="absolute bottom-1/4 right-1/4 w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-tiktok-cyan/10 blur-[100px] md:blur-[120px] rounded-full animate-pulse delay-1000" />
               
-              <div className="max-w-7xl mx-auto text-center relative z-10">
+              <div className="max-w-7xl mx-auto text-center relative z-10 w-full">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.8, ease: "easeOut" }}
                 >
-                  <Badge className="bg-white/5 text-white/50 border-white/10 mb-6 rounded-full px-5 py-1.5 uppercase tracking-widest text-[9px] font-black backdrop-blur-md">
+                  <Badge className="bg-white/5 text-white/50 border-white/10 mb-6 md:mb-8 rounded-full px-4 md:px-5 py-1.5 uppercase tracking-widest text-[8px] md:text-[9px] font-black backdrop-blur-md">
                     #1 PLATAFORMA DE CONTINGÊNCIA TIKTOK
                   </Badge>
                   
@@ -599,10 +617,10 @@ export default function App() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2, duration: 0.8 }}
-                    className="text-4xl md:text-5xl font-black tracking-tight italic text-white mb-12 uppercase flex flex-wrap justify-center gap-x-4"
+                    className="text-3xl md:text-5xl font-black tracking-tight italic text-white mb-8 md:mb-12 uppercase flex flex-col md:flex-row items-center justify-center gap-2 md:gap-x-4"
                   >
-                    ESCALE 
-                    <div className="relative inline-block h-[1.2em] overflow-hidden min-w-[320px] md:min-w-[450px]">
+                    <span>ESCALE</span>
+                    <div className="relative inline-block h-[1.2em] overflow-hidden min-w-[280px] md:min-w-[450px]">
                       <AnimatePresence mode="wait">
                         <motion.span
                           key={headlineWordIndex}
@@ -610,7 +628,7 @@ export default function App() {
                           animate={{ y: 0, opacity: 1 }}
                           exit={{ y: -40, opacity: 0 }}
                           transition={{ duration: 0.5, ease: "circOut" }}
-                          className="absolute inset-0 bg-gradient-to-r from-tiktok-red to-tiktok-cyan bg-clip-text text-transparent"
+                          className="absolute inset-0 bg-gradient-to-r from-tiktok-red to-tiktok-cyan bg-clip-text text-transparent w-full text-center"
                         >
                           {headlineWords[headlineWordIndex]}
                         </motion.span>
@@ -623,7 +641,7 @@ export default function App() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.4, duration: 0.8 }}
-                    className="relative max-w-4xl mx-auto aspect-video bg-white/5 rounded-[40px] border border-white/10 overflow-hidden group shadow-2xl"
+                    className="relative max-w-4xl mx-auto aspect-video bg-white/5 rounded-3xl md:rounded-[40px] border border-white/10 overflow-hidden group shadow-2xl"
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
                     <img 
@@ -651,16 +669,16 @@ export default function App() {
             </section>
 
         {/* Products Section */}
-        <section id="produtos" className="py-20 relative">
+        <section id="produtos" className="py-12 md:py-20 relative">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-tiktok-red/5 blur-[120px] rounded-full pointer-events-none" />
           
-          <div className="max-w-7xl mx-auto px-6 relative z-10 text-white">
-            <div className="text-center mb-16 relative">
-              <Badge className="bg-tiktok-red/10 text-tiktok-red border-tiktok-red/20 mb-6 rounded-full px-6 py-1.5 uppercase tracking-widest text-[10px] font-black">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10 text-white">
+            <div className="text-center mb-10 md:mb-16 relative">
+              <Badge className="bg-tiktok-red/10 text-tiktok-red border-tiktok-red/20 mb-4 md:mb-6 rounded-full px-5 md:px-6 py-1.5 uppercase tracking-widest text-[9px] md:text-[10px] font-black">
                 Packs de Elite
               </Badge>
-              <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter uppercase leading-none">ESCOLHA SEU ARSENAL</h2>
-              <p className="text-white/40 text-lg max-w-2xl mx-auto font-medium mt-6">
+              <h2 className="text-3xl md:text-5xl font-black italic tracking-tighter uppercase leading-none px-4">ESCOLHA SEU ARSENAL</h2>
+              <p className="text-white/40 text-sm md:text-lg max-w-2xl mx-auto font-medium mt-4 md:mt-6 px-4">
                 Selecione o volume ideal para sua operação. Entrega 100% automática.
               </p>
             </div>
@@ -822,9 +840,12 @@ export default function App() {
         </section>
 
         {/* Stats / Benefits Section */}
-        <section id="beneficios" className="py-16 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <section id="beneficios" className="py-10 md:py-16 relative overflow-hidden bg-white/[0.01]">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-64 bg-tiktok-cyan/[0.03] blur-[120px] rounded-full" />
+          
+          <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               {[
                 { icon: Zap, label: "Entrega Instantânea", desc: "Receba seus acessos imediatamente após o PIX via Auto-Pix 24/7.", color: "tiktok-red" },
                 { icon: ShieldCheck, label: "Máxima Proteção", desc: "Contas verificadas com protocolos de elite para evitar bloqueios.", color: "tiktok-cyan" },
@@ -864,18 +885,18 @@ export default function App() {
         {/* Security Section Removed as requested */}
 
 
-        {/* FAQ Section */}
-        <section id="suporte" className="py-16">
-          <div className="max-w-3xl mx-auto px-6 text-center text-white">
-            <h2 className="text-4xl font-black italic tracking-tighter mb-6 uppercase text-white">DIFÍCIL DE ACREDITAR?</h2>
-            <p className="text-white/40 text-base mb-10 font-bold uppercase tracking-widest">Nossa equipe de especialistas está pronta para te provar na prática.</p>
+        <section id="suporte" className="py-12 md:py-24 relative overflow-hidden">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-tiktok-red/5 blur-[120px] rounded-full pointer-events-none" />
+          <div className="max-w-3xl mx-auto px-6 text-center text-white relative z-10">
+            <h2 className="text-3xl md:text-4xl font-black italic tracking-tighter mb-4 md:mb-6 uppercase text-white leading-none">DIFÍCIL DE ACREDITAR?</h2>
+            <p className="text-white/40 text-xs md:text-base mb-8 md:mb-10 font-bold uppercase tracking-widest">Nossa equipe de especialistas está pronta para te provar na prática.</p>
             <a 
               href="https://wa.me/5500000000000" 
               target="_blank" 
               rel="noopener noreferrer"
               className={cn(
                 buttonVariants({ variant: "outline", size: "lg" }),
-                "rounded-full px-12 h-14 border-white/10 bg-white/5 hover:bg-tiktok-red hover:text-white hover:border-tiktok-red text-white font-black uppercase italic tracking-tighter transition-all"
+                "rounded-full px-8 md:px-12 h-12 md:h-14 border-white/10 bg-white/5 hover:bg-tiktok-red hover:text-white hover:border-tiktok-red text-white font-black uppercase italic tracking-tighter transition-all text-xs md:text-base"
               )}
             >
               FALAR COM SUPORTE
@@ -901,23 +922,27 @@ export default function App() {
         </div>
       </>
     ) : (
-      <div className="max-w-5xl mx-auto px-6 py-16 space-y-12 min-h-screen">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-white/10 pb-10">
-          <div className="space-y-3">
-             <Badge className="bg-tiktok-cyan/10 text-tiktok-cyan border-tiktok-cyan/20 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">Centro de Comando</Badge>
-             <h2 className="text-4xl font-black italic text-white tracking-tighter uppercase leading-none">Meus Pedidos</h2>
-             <p className="text-sm text-white/40 font-bold uppercase tracking-widest">Acompanhe e baixe suas BC's de escala</p>
+      <div className="max-w-5xl mx-auto px-4 md:px-6 py-10 md:py-16 space-y-8 md:space-y-12 min-h-screen relative z-20">
+        {/* Aesthetic Background for Orders View */}
+        <div className="fixed inset-0 bg-mesh opacity-[0.05] pointer-events-none -z-10" />
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-tiktok-red/5 blur-[150px] rounded-full -z-10 pointer-events-none" />
+
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-8 border-b border-white/10 pb-6 md:pb-10">
+          <div className="space-y-1.5 md:space-y-3 text-left">
+             <Badge className="bg-tiktok-cyan/10 text-tiktok-cyan border-tiktok-cyan/20 px-3 md:px-4 py-1 rounded-full text-[8px] md:text-[9px] font-black uppercase tracking-widest">Centro de Comando</Badge>
+             <h2 className="text-3xl md:text-4xl font-black italic text-white tracking-tighter uppercase leading-none">Meus Pedidos</h2>
+             <p className="text-[10px] md:text-sm text-white/40 font-bold uppercase tracking-widest leading-tight">Acompanhe e baixe suas BC's de escala</p>
           </div>
           <Button 
             variant="outline" 
             onClick={() => setView("home")}
-            className="rounded-full border-white/10 hover:border-tiktok-red h-12 px-8 font-black uppercase italic tracking-tighter text-sm transition-all"
+            className="rounded-full border-white/10 hover:border-tiktok-red h-10 md:h-12 px-6 md:px-8 font-black uppercase italic tracking-tighter text-xs md:text-sm transition-all w-fit"
           >
-            <ArrowLeft className="mr-2 w-4 h-4" /> Voltar
+            <ArrowLeft className="mr-2 w-3.5 h-3.5" /> Voltar
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-8">
+        <div className="grid grid-cols-1 gap-4 md:gap-8">
           {orders.length > 0 ? (
             orders.map((order) => (
               <motion.div
@@ -925,28 +950,28 @@ export default function App() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
               >
-                <Card className="overflow-hidden border-white/5 bg-white/[0.03] backdrop-blur-xl hover:border-tiktok-red transition-all group rounded-3xl text-white p-1">
-                  <div className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-10">
-                    <div className="flex items-center gap-8">
+                <Card className="overflow-hidden border-white/5 bg-white/[0.03] backdrop-blur-xl hover:border-tiktok-red transition-all group rounded-3xl text-white p-0.5 md:p-1">
+                  <div className="p-5 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 md:gap-10">
+                    <div className="flex items-center gap-4 md:gap-8">
                       <div className={cn(
-                        "w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-2xl transition-all",
+                        "w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 shadow-2xl transition-all",
                         order.status === "paid" ? "bg-tiktok-cyan text-black" : 
                         order.status === "pending" ? "bg-tiktok-red text-white" : "bg-white/10 text-white/30"
                       )}>
-                        <ShoppingBag className="w-8 h-8" />
+                        <ShoppingBag className="w-6 h-6 md:w-8 md:h-8" />
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-4">
-                           <h3 className="text-2xl font-black italic text-white tracking-tighter uppercase leading-none">{order.packageId}</h3>
+                      <div className="space-y-1 md:space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                           <h3 className="text-lg md:text-2xl font-black italic text-white tracking-tighter uppercase leading-none">{order.packageId}</h3>
                            <Badge className={cn(
-                             "rounded-full px-4 py-1.5 text-[9px] font-black uppercase tracking-widest border-none",
+                             "w-fit rounded-full px-3 py-1 text-[8px] md:text-[9px] font-black uppercase tracking-widest border-none",
                              order.status === "paid" ? "bg-tiktok-cyan/20 text-tiktok-cyan" : 
                              order.status === "pending" ? "bg-tiktok-red/20 text-tiktok-red" : "bg-white/5 text-white/30"
                            )}>
                              {order.status === "paid" ? "LIBERADO" : order.status === "pending" ? "PENDENTE" : "EXPIRADO"}
                            </Badge>
                         </div>
-                        <div className="flex items-center gap-4 text-white/30 font-bold uppercase tracking-widest text-[9px]">
+                        <div className="flex items-center gap-2 md:gap-4 text-white/30 font-bold uppercase tracking-widest text-[8px] md:text-[9px]">
                            <span>ID: {order.id.slice(0, 8)}</span>
                            <span className="w-0.5 h-0.5 rounded-full bg-white/30" />
                            <span>{new Date(order.createdAt).toLocaleDateString("pt-BR")}</span>
@@ -954,12 +979,12 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col md:items-end gap-5">
-                      <p className="text-3xl font-black italic text-white tracking-tighter">R$ {order.amount.toFixed(2)}</p>
+                    <div className="flex flex-col md:items-end gap-2 md:gap-5">
+                      <p className="text-lg md:text-3xl font-black italic text-white tracking-tighter">R$ {order.amount.toFixed(2)}</p>
                       {order.status === "paid" && order.accounts ? (
                         <div className="flex gap-4">
                            <Button 
-                            className="bg-white text-black hover:bg-tiktok-cyan font-black italic tracking-tighter uppercase rounded-full h-12 px-8 transition-all scale-100 hover:scale-105"
+                            className="w-full sm:w-auto h-9 md:h-12 bg-white text-black hover:bg-tiktok-cyan font-black italic tracking-tighter uppercase rounded-full px-5 md:px-8 transition-all scale-100 hover:scale-105 text-[10px] md:text-sm"
                             onClick={() => {
                               const blob = new Blob([order.accounts], { type: 'text/plain' });
                               const url = window.URL.createObjectURL(blob);
@@ -969,12 +994,12 @@ export default function App() {
                               a.click();
                             }}
                           >
-                            <Download className="w-4 h-4 mr-2" /> Baixar BC's
+                            <Download className="w-3 h-3 md:w-4 md:h-4 mr-2" /> Baixar BC's
                           </Button>
                         </div>
                       ) : order.status === "pending" ? (
                         <Button 
-                          className="bg-tiktok-red hover:bg-tiktok-red/90 text-white font-black italic tracking-tighter uppercase rounded-full h-12 px-10 transition-all shadow-[0_0_20px_rgba(255,29,77,0.3)]"
+                          className="w-full sm:w-auto bg-tiktok-red hover:bg-tiktok-red/90 text-white font-black italic tracking-tighter uppercase rounded-full h-9 md:h-12 px-6 md:px-10 transition-all shadow-[0_0_20px_rgba(255,29,77,0.3)] text-[10px] md:text-sm"
                           onClick={() => {
                             setPixData({
                               pixCode: order.pixCode,
@@ -991,28 +1016,28 @@ export default function App() {
                   </div>
                   
                   {order.status === "paid" && order.accounts && (
-                    <div className="px-8 pb-8">
-                      <div className="bg-black/60 rounded-[32px] p-6 border border-white/5 space-y-4">
+                    <div className="px-5 md:px-8 pb-5 md:pb-8">
+                      <div className="bg-black/60 rounded-2xl md:rounded-[32px] p-4 md:p-6 border border-white/5 space-y-3 md:space-y-4">
                         <div className="flex items-center justify-between">
-                          <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">Acessos Entregues:</p>
+                          <p className="text-[8px] md:text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">Acessos Entregues:</p>
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-8 px-4 text-[9px] font-black uppercase tracking-widest text-tiktok-cyan hover:bg-tiktok-cyan/10 hover:text-tiktok-cyan rounded-lg transition-all"
+                            className="h-7 md:h-8 text-[8px] md:text-[9px] font-black uppercase text-tiktok-cyan hover:text-tiktok-cyan/80 p-0"
                             onClick={() => {
                               navigator.clipboard.writeText(order.accounts);
                               toast.success("Copiado!");
                             }}
                           >
-                            <Copy className="w-3.5 h-3.5 mr-2" /> Copiar
+                            <Copy className="w-3 h-3 mr-1" /> COPIAR
                           </Button>
                         </div>
-                        <pre className="text-xs font-mono text-white/60 whitespace-pre-wrap break-all bg-white/[0.02] p-6 rounded-[24px] border border-white/5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                        <pre className="text-[10px] md:text-xs font-mono text-white/60 whitespace-pre-wrap break-all bg-black/40 p-4 md:p-6 rounded-xl md:rounded-2xl border border-white/5 max-h-32 md:max-h-40 overflow-y-auto custom-scrollbar">
                           {order.accounts}
                         </pre>
-                        <div className="flex items-center gap-3 text-tiktok-cyan/80">
-                          <CheckCircle2 className="w-4 h-4" />
-                          <p className="text-[9px] font-black uppercase tracking-widest leading-none">BC's verificadas e prontas.</p>
+                        <div className="pt-2 flex items-center gap-2">
+                          <CheckCircle2 className="w-3 h-3 text-tiktok-cyan" />
+                          <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-tiktok-cyan/50 italic">BC's verificadas e prontas.</span>
                         </div>
                       </div>
                     </div>

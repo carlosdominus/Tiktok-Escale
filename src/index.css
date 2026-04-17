@@ -111,6 +111,13 @@
     --sidebar-ring: oklch(0.556 0 0);
 }
 
+@layer utilities {
+  .bg-mesh {
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
+    background-size: 32px 32px;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

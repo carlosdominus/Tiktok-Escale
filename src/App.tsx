@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, ReactNode } from "react";
+import { useState, useEffect, useMemo, ReactNode, useRef } from "react";
 import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
@@ -58,6 +58,55 @@ interface AccountData {
   "Status": string;
 }
 
+const InfoTooltip = ({ content, title }: { content: ReactNode, title?: string }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const timeoutRef = useRef<any>(null);
+
+  const handleEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setIsOpen(true);
+  };
+
+  const handleLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  };
+
+  return (
+    <div 
+      className="relative inline-block"
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
+      <button className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-tiktok-cyan transition-all">
+        <Info className="w-3.5 h-3.5" />
+      </button>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="absolute z-50 bottom-full right-0 mb-4 w-64 bg-black/95 backdrop-blur-2xl border border-white/10 rounded-2xl p-5 shadow-[0_0_40px_rgba(0,0,0,0.5)] pointer-events-auto"
+            onMouseEnter={handleEnter}
+            onMouseLeave={handleLeave}
+          >
+            {/* Bridge element to prevent closing when moving mouse to tooltip */}
+            <div className="absolute top-full left-0 w-full h-[30px] bg-transparent" />
+            
+            {title && <p className="text-[10px] font-black italic tracking-tighter uppercase text-tiktok-cyan mb-2">{title}</p>}
+            <div className="text-[11px] text-white/60 font-medium leading-relaxed">
+              {content}
+            </div>
+            <div className="absolute top-full right-4 w-3 h-3 bg-black/95 border-r border-b border-white/10 rotate-45 -mt-[6px]" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export default function App() {
   const [packages, setPackages] = useState<PackageData[]>([]);
   const [accounts, setAccounts] = useState<AccountData[]>([]);
@@ -79,39 +128,6 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [quantity, setQuantity] = useState(5);
   const [headlineWordIndex, setHeadlineWordIndex] = useState(0);
-
-  const InfoTooltip = ({ content, title }: { content: ReactNode, title?: string }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    return (
-      <div 
-        className="relative inline-block"
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-      >
-        <button className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-tiktok-cyan transition-all">
-          <Info className="w-3.5 h-3.5" />
-        </button>
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="absolute z-50 bottom-full right-0 mb-4 w-64 bg-black/95 backdrop-blur-2xl border border-white/10 rounded-2xl p-5 shadow-[0_0_40px_rgba(0,0,0,0.5)] pointer-events-auto"
-              onMouseEnter={() => setIsOpen(true)}
-              onMouseLeave={() => setIsOpen(false)}
-            >
-              {title && <p className="text-[10px] font-black italic tracking-tighter uppercase text-tiktok-cyan mb-2">{title}</p>}
-              <div className="text-[11px] text-white/60 font-medium leading-relaxed">
-                {content}
-              </div>
-              <div className="absolute top-full right-4 w-3 h-3 bg-black/95 border-r border-b border-white/10 rotate-45 -mt-[6px]" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
   
   const headlineWords = ["SEM LIMITES", "SEU ARSENAL", "EM ALTA ESCALA", "INDUSTRIAL"];
   
@@ -673,11 +689,11 @@ export default function App() {
                     transition={{ delay: i * 0.1 }}
                   >
                     <Card className={cn(
-                      "rounded-3xl border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all duration-500 hover:border-tiktok-red group relative overflow-hidden h-full flex flex-col text-white",
+                      "rounded-3xl border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all duration-500 hover:border-tiktok-red group relative overflow-visible h-full flex flex-col text-white",
                       i === 1 ? 'ring-1 ring-tiktok-red shadow-[0_0_80px_rgba(255,29,77,0.15)] bg-white/[0.05]' : 'hover:bg-white/[0.06]'
                     )}>
                       {i === 1 && (
-                        <div className="absolute top-0 right-0 bg-tiktok-red text-white px-6 py-1.5 rounded-bl-2xl text-[9px] font-black uppercase tracking-[0.2em] z-20">
+                        <div className="absolute top-0 right-0 bg-tiktok-red text-white px-6 py-1.5 rounded-bl-2xl rounded-tr-3xl text-[9px] font-black uppercase tracking-[0.2em] z-20">
                           Recomendado
                         </div>
                       )}

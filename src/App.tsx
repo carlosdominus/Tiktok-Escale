@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, ReactNode } from "react";
 import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
@@ -79,6 +79,40 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [quantity, setQuantity] = useState(5);
   const [headlineWordIndex, setHeadlineWordIndex] = useState(0);
+
+  const InfoTooltip = ({ content, title }: { content: ReactNode, title?: string }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    return (
+      <div 
+        className="relative inline-block"
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+      >
+        <button className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-tiktok-cyan transition-all">
+          <Info className="w-3.5 h-3.5" />
+        </button>
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="absolute z-50 bottom-full right-0 mb-4 w-64 bg-black/95 backdrop-blur-2xl border border-white/10 rounded-2xl p-5 shadow-[0_0_40px_rgba(0,0,0,0.5)] pointer-events-auto"
+              onMouseEnter={() => setIsOpen(true)}
+              onMouseLeave={() => setIsOpen(false)}
+            >
+              {title && <p className="text-[10px] font-black italic tracking-tighter uppercase text-tiktok-cyan mb-2">{title}</p>}
+              <div className="text-[11px] text-white/60 font-medium leading-relaxed">
+                {content}
+              </div>
+              <div className="absolute top-full right-4 w-3 h-3 bg-black/95 border-r border-b border-white/10 rotate-45 -mt-[6px]" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+  
   const headlineWords = ["SEM LIMITES", "SEU ARSENAL", "EM ALTA ESCALA", "INDUSTRIAL"];
   
   const { scrollY } = useScroll();
@@ -609,28 +643,7 @@ export default function App() {
               <Badge className="bg-tiktok-red/10 text-tiktok-red border-tiktok-red/20 mb-6 rounded-full px-6 py-1.5 uppercase tracking-widest text-[10px] font-black">
                 Packs de Elite
               </Badge>
-              <div className="flex items-center justify-center gap-3">
-                <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter uppercase leading-none">ESCOLHA SEU ARSENAL</h2>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <button className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-tiktok-cyan transition-all">
-                      <Info className="w-4 h-4" />
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[400px] border-white/10 bg-black/95 text-white rounded-3xl p-8 shadow-2xl">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl font-black italic tracking-tighter uppercase mb-2">Metodologia de Escala</DialogTitle>
-                      <DialogDescription className="text-white/60 font-medium leading-relaxed">
-                        Nossas BC's são preparadas com protocolos de elite. Cada perfil vem com 30 contas de anúncio integradas, totalizando o arsenal descrito em cada pacote. <br/><br/>
-                        <span className="text-tiktok-cyan italic font-bold">Referência de custo (3 BCs):</span><br/>
-                        • Pack Inicial: R$ 180<br/>
-                        • Pack Escala: R$ 150 <br/>
-                        • Pack Industrial: R$ 140 
-                      </DialogDescription>
-                    </DialogHeader>
-                  </DialogContent>
-                </Dialog>
-              </div>
+              <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter uppercase leading-none">ESCOLHA SEU ARSENAL</h2>
               <p className="text-white/40 text-lg max-w-2xl mx-auto font-medium mt-6">
                 Selecione o volume ideal para sua operação. Entrega 100% automática.
               </p>
@@ -669,13 +682,35 @@ export default function App() {
                         </div>
                       )}
                       
-                      <CardHeader className="p-8 pb-4">
-                        <CardTitle className="text-2xl font-black text-white italic tracking-tighter mb-1 group-hover:text-tiktok-red transition-all">
-                          {pkg.name}
-                        </CardTitle>
-                        <CardDescription className="text-white/30 font-bold tracking-widest text-[8px]">
-                          {pkg.name === "Pacote 3" ? "Volume Industrial" : (pkg.profiles === "1" ? "Entrada Estratégia" : "Escala Acelerada")}
-                        </CardDescription>
+                      <CardHeader className="p-8 pb-4 relative">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-2xl font-black text-white italic tracking-tighter mb-1 group-hover:text-tiktok-red transition-all">
+                              {pkg.name}
+                            </CardTitle>
+                            <CardDescription className="text-white/30 font-bold tracking-widest text-[8px]">
+                              {pkg.name === "Pacote 3" ? "Volume Industrial" : (pkg.profiles === "1" ? "Entrada Estratégia" : "Escala Acelerada")}
+                            </CardDescription>
+                          </div>
+                          <InfoTooltip 
+                            title="Análise de Custo"
+                            content={
+                              <>
+                                <p className="mb-2">Este arsenal é entregue com protocolos de elite e suporte dedicado.</p>
+                                <div className="space-y-1">
+                                  <div className="flex justify-between border-b border-white/5 pb-1">
+                                    <span>Preço por BC:</span>
+                                    <span className="text-white font-bold">R$ {i === 0 ? "60,00" : i === 1 ? "50,00" : "46,66"}</span>
+                                  </div>
+                                  <div className="flex justify-between pt-1">
+                                    <span>Preço (3 BCs):</span>
+                                    <span className="text-tiktok-cyan font-bold">R$ {i === 0 ? "180" : i === 1 ? "150" : "140"}</span>
+                                  </div>
+                                </div>
+                              </>
+                            } 
+                          />
+                        </div>
                       </CardHeader>
 
                       <CardContent className="p-8 pt-0 flex-grow">
@@ -687,14 +722,14 @@ export default function App() {
                             <span className="text-white/20 font-bold text-[8px] uppercase tracking-widest">/ único</span>
                           </div>
                           <p className="text-[10px] font-bold text-tiktok-cyan italic tracking-tight opacity-80">
-                            Equivalente a R$ {i === 0 ? "180" : i === 1 ? "150" : "140"} por 3 BC's
+                            Preço por Trio de BC's: R$ {i === 0 ? "180" : i === 1 ? "150" : "140"}
                           </p>
                         </div>
                         
                         <div className="space-y-3 mb-8 text-xs">
                           {[
-                            { text: pkg.name === "Pacote 3" ? `${quantity} BC's Completos` : `${pkg.profiles} BC's Completos`, icon: TrendingUp },
-                            { text: pkg.name === "Pacote 3" ? `${quantity * 90} Contas no total` : `${pkg.accounts} Contas no total`, icon: Users },
+                            { text: pkg.name === "Pacote 3" ? `${quantity * 3} BC's Completos` : `${pkg.profiles} BC's Completos`, icon: TrendingUp },
+                            { text: pkg.name === "Pacote 3" ? `${quantity * 3 * 30} Contas no total` : `${pkg.accounts} Contas no total`, icon: Users },
                             { text: "Acesso Outlook + TikTok", icon: CheckCircle2 },
                             { text: "Liberação Imediata", icon: Zap }
                           ].map((feat, idx) => (

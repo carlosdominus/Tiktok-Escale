@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
 import { 
@@ -19,7 +19,12 @@ import {
   ShoppingBag,
   ArrowLeft,
   Download,
-  Check
+  Check,
+  PlayCircle,
+  TrendingUp,
+  LayoutDashboard,
+  Clock,
+  Info
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,6 +78,31 @@ export default function App() {
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [quantity, setQuantity] = useState(5);
+  const [headlineWordIndex, setHeadlineWordIndex] = useState(0);
+  const headlineWords = ["SEM LIMITES", "SEU ARSENAL", "EM ALTA ESCALA", "INDUSTRIAL"];
+  
+  const { scrollY } = useScroll();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeadlineWordIndex((prev) => (prev + 1) % headlineWords.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const navigateTo = (id: string) => {
+    if (view !== "home") setView("home");
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  const headerHeight = useTransform(scrollY, [0, 100], ["80px", "64px"]);
+  const headerPadding = useTransform(scrollY, [0, 100], ["24px", "12px"]);
+  const headerBg = useTransform(scrollY, [0, 100], ["rgba(255,255,255,0.03)", "rgba(0,0,0,0.8)"]);
+  const headerBorder = useTransform(scrollY, [0, 100], ["rgba(255,255,255,0.12)", "rgba(255,255,255,0.1)"]);
+  const headerScale = useTransform(scrollY, [0, 100], [1, 0.96]);
 
   useEffect(() => {
     if (user) {
@@ -342,49 +372,49 @@ export default function App() {
     const lastPaidOrder = orders.find(o => o.status === "paid");
     
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-black flex items-center justify-center p-6 selection:bg-tiktok-red selection:text-white">
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-xl w-full bg-white rounded-[40px] p-8 md:p-12 shadow-2xl shadow-slate-200 text-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-xl w-full bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-3xl p-8 md:p-10 shadow-2xl text-center"
         >
-          <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+          <div className="w-16 h-16 bg-tiktok-cyan/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-tiktok-cyan/20">
+            <CheckCircle2 className="w-8 h-8 text-tiktok-cyan" />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 mb-3">Pagamento Confirmado!</h1>
-          <p className="text-slate-500 mb-8 leading-relaxed">
-            Seu pedido foi processado com sucesso. Suas contas já estão disponíveis abaixo e em "Meus Pedidos".
+          <h1 className="text-3xl font-black text-white mb-3 italic tracking-tighter uppercase">Arsenal Liberado</h1>
+          <p className="text-white/40 mb-6 leading-relaxed font-medium">
+            Seu pagamento foi confirmado com sucesso. Suas BC's já estão disponíveis para mobilização.
           </p>
           
-          <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-8 text-left">
+          <div className="bg-white/5 p-6 rounded-2xl border border-white/5 mb-8 text-left">
             <div className="flex items-center justify-between mb-4">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Suas Contas Entregues</p>
+              <p className="text-[9px] uppercase tracking-[0.2em] text-white/20 font-black">Suas BC's Entregues</p>
               {lastPaidOrder?.accounts && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="h-7 text-[10px] font-black uppercase tracking-widest text-emerald-600"
+                  className="h-8 px-4 text-[9px] font-black uppercase tracking-widest text-tiktok-cyan hover:bg-tiktok-cyan/10"
                   onClick={() => {
                     navigator.clipboard.writeText(lastPaidOrder.accounts);
-                    toast.success("Contas copiadas!");
+                    toast.success("Copiado!");
                   }}
                 >
-                  <Copy className="w-3 h-3 mr-1" /> Copiar
+                  <Copy className="w-3.5 h-3.5 mr-2" /> Copiar
                 </Button>
               )}
             </div>
             
             <div className="space-y-4">
               {lastPaidOrder?.accounts ? (
-                <pre className="text-xs font-mono text-slate-600 whitespace-pre-wrap break-all bg-white p-4 rounded-xl border border-slate-100 max-h-40 overflow-y-auto">
+                <pre className="text-xs font-mono text-white/60 whitespace-pre-wrap break-all bg-black/40 p-6 rounded-2xl border border-white/5 max-h-40 overflow-y-auto custom-scrollbar">
                   {lastPaidOrder.accounts}
                 </pre>
               ) : (
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center">
-                    <Zap className="w-4 h-4 text-emerald-500 animate-pulse" />
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-tiktok-cyan animate-pulse" />
                   </div>
-                  <span className="text-sm font-medium text-slate-400 italic">Liberando contas no sistema...</span>
+                  <span className="text-xs font-medium text-white/20 italic">Liberando BC's no sistema...</span>
                 </div>
               )}
             </div>
@@ -392,25 +422,25 @@ export default function App() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Button 
-              className="h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shadow-lg shadow-emerald-500/20"
+              className="h-14 rounded-full bg-tiktok-cyan hover:bg-tiktok-cyan/90 text-black font-black uppercase italic tracking-tighter"
               onClick={() => {
                 setIsSuccessPage(false);
                 setView("orders");
                 window.history.pushState({}, "", "/");
               }}
             >
-              Ver Meus Pedidos
+              Meus Pedidos
             </Button>
             <Button 
               variant="outline" 
-              className="h-14 rounded-2xl border-slate-200 text-slate-600 font-bold"
+              className="h-14 rounded-full border-white/10 text-white/50 hover:text-white font-black uppercase italic tracking-tighter"
               onClick={() => {
                 window.history.pushState({}, "", "/");
                 setIsSuccessPage(false);
                 setView("home");
               }}
             >
-              Voltar para Início
+              Voltar ao Início
             </Button>
           </div>
         </motion.div>
@@ -419,23 +449,32 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
-      <Toaster position="top-center" />
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-tiktok-red selection:text-white">
+      <Toaster position="top-center" richColors theme="dark" />
       
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
-              <Zap className="text-white w-6 h-6 fill-current" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-slate-800">Dominus<span className="text-emerald-500">Scale</span></span>
-          </div>
+      {/* Interactive Retracting Header */}
+      <div className="fixed top-6 left-0 right-0 z-50 px-6">
+        <motion.nav 
+          style={{ backgroundColor: headerBg, borderColor: headerBorder }}
+          className="max-w-6xl mx-auto h-16 flex items-center border rounded-full backdrop-blur-xl transition-all shadow-2xl"
+        >
+          <div className="w-full flex items-center justify-between px-6">
+          <button 
+            onClick={() => { setView("home"); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className="flex items-center gap-3 group transition-transform hover:scale-105"
+          >
+            <motion.div style={{ scale: headerScale }} className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-tiktok-red rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(255,29,77,0.4)] transition-all group-hover:shadow-[0_0_20px_rgba(255,29,77,0.6)]">
+                <Zap className="text-white w-5 h-5 fill-current" />
+              </div>
+              <span className="text-lg font-black italic tracking-tighter text-white">Tiktok<span className="text-tiktok-cyan">Escale</span></span>
+            </motion.div>
+          </button>
           
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-500">
-            <a href="#produtos" className="hover:text-emerald-600 transition-colors">Produtos</a>
-            <a href="#seguranca" className="hover:text-emerald-600 transition-colors">Segurança</a>
-            <a href="#suporte" className="hover:text-emerald-600 transition-colors">Suporte</a>
+          <div className="hidden md:flex items-center gap-6 text-[11px] font-bold tracking-widest text-white/50">
+            <button onClick={() => navigateTo("vsl")} className="hover:text-tiktok-red transition-all cursor-pointer">Estratégia</button>
+            <button onClick={() => navigateTo("produtos")} className="hover:text-tiktok-red transition-all cursor-pointer">Escale Agora</button>
+            <button onClick={() => navigateTo("beneficios")} className="hover:text-tiktok-red transition-all cursor-pointer">Vantagens</button>
           </div>
 
           <div className="flex items-center gap-4">
@@ -443,7 +482,7 @@ export default function App() {
               <Button 
                 variant="ghost" 
                 onClick={() => setView(view === "home" ? "orders" : "home")}
-                className="text-slate-600 font-bold hover:text-emerald-600"
+                className="text-white/70 font-bold hover:text-tiktok-cyan"
               >
                 {view === "home" ? (
                   <><ShoppingBag className="w-5 h-5 mr-2" /> Meus Pedidos</>
@@ -452,149 +491,162 @@ export default function App() {
                 )}
               </Button>
             )}
-            {isAuthLoading ? (
-              <Skeleton className="h-10 w-24 rounded-full" />
-            ) : user ? (
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:block text-right">
-                  <p className="text-xs font-bold text-slate-800">{user.displayName}</p>
-                  <p className="text-[10px] text-slate-500">{user.email}</p>
-                </div>
-                <Dialog>
-                  <DialogTrigger 
-                    render={
-                      <Button variant="ghost" className="p-0 h-10 w-10 rounded-full overflow-hidden border border-slate-100">
-                        <img src={user.photoURL || ""} alt="User" className="w-full h-full object-cover" />
-                      </Button>
-                    }
-                  />
-                  <DialogContent className="sm:max-w-[300px] rounded-3xl">
-                    <div className="flex flex-col items-center gap-4 py-4">
-                      <img src={user.photoURL || ""} alt="User" className="w-20 h-20 rounded-full border-4 border-emerald-50" />
-                      <div className="text-center">
-                        <p className="font-bold">{user.displayName}</p>
-                        <p className="text-sm text-slate-500">{user.email}</p>
-                      </div>
-                      <Button variant="destructive" className="w-full rounded-xl gap-2" onClick={handleLogout}>
-                        <LogOut className="w-4 h-4" /> Sair
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+            
+            {user ? (
+               <div className="flex items-center gap-3">
+               <Dialog>
+                 <DialogTrigger 
+                   render={
+                     <Button variant="ghost" className="p-0 h-9 w-9 rounded-full overflow-hidden border border-white/10">
+                       <img src={user.photoURL || ""} alt="User" className="w-full h-full object-cover" />
+                     </Button>
+                   }
+                 />
+                 <DialogContent className="sm:max-w-[300px] border-white/10 bg-black/95 text-white">
+                   <div className="flex flex-col items-center gap-4 py-4">
+                     <img src={user.photoURL || ""} alt="User" className="w-20 h-20 rounded-full border-2 border-tiktok-red" />
+                     <div className="text-center">
+                       <p className="font-bold">{user.displayName}</p>
+                       <p className="text-sm text-white/50">{user.email}</p>
+                     </div>
+                     <Button variant="destructive" className="w-full bg-tiktok-red" onClick={handleLogout}>
+                       <LogOut className="w-4 h-4 mr-2" /> Sair
+                     </Button>
+                   </div>
+                 </DialogContent>
+               </Dialog>
+             </div>
             ) : (
-              <Button onClick={handleLogin} className="rounded-full bg-slate-900 hover:bg-slate-800 text-white gap-2">
-                <UserIcon className="w-4 h-4" /> Entrar
+              <Button onClick={handleLogin} className="rounded-full bg-white text-black font-black hover:bg-tiktok-cyan transition-all h-10 px-6">
+                CONTATO
               </Button>
             )}
           </div>
         </div>
-      </nav>
+      </motion.nav>
+    </div>
 
-      <main>
+    <main className="pt-20">
         {view === "home" ? (
           <>
-            {/* Hero Section */}
-            <section className="relative pt-20 pb-32 overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6 relative z-10">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="max-w-3xl"
-            >
-              <Badge variant="secondary" className="mb-6 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-none px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
-                Plataforma Premium de Contas
-              </Badge>
-              <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.1] mb-8">
-                Escala seu negócio com <span className="text-emerald-500">contas de elite.</span>
-              </h1>
-              <p className="text-xl text-slate-500 leading-relaxed mb-10 max-w-2xl">
-                Acesso instantâneo a perfis de alta qualidade para TikTok e Outlook. 
-                Entrega automática via PIX em menos de 30 segundos.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <a 
-                  href="#produtos" 
-                  className={cn(
-                    buttonVariants({ size: "lg" }), 
-                    "bg-emerald-500 hover:bg-emerald-600 text-white rounded-full px-8 h-14 text-lg shadow-xl shadow-emerald-200/50 group"
-                  )}
+            {/* Elite Hero Section */}
+            <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden px-6">
+              {/* Background Accents */}
+              <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-tiktok-red/20 blur-[120px] rounded-full animate-pulse" />
+              <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-tiktok-cyan/10 blur-[120px] rounded-full animate-pulse delay-1000" />
+              
+              <div className="max-w-7xl mx-auto text-center relative z-10">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
                 >
-                  Ver Pacotes <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </a>
-                <div className="flex items-center gap-4 px-4">
-                  <div className="flex -space-x-3">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-slate-100 overflow-hidden">
-                        <img src={`https://picsum.photos/seed/user${i}/100/100`} alt="User" referrerPolicy="no-referrer" />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-bold text-slate-800">+2.500 clientes</p>
-                    <p className="text-slate-500">confiam na Dominus</p>
-                  </div>
-                </div>
+                  <Badge className="bg-white/5 text-white/50 border-white/10 mb-6 rounded-full px-5 py-1.5 uppercase tracking-widest text-[9px] font-black backdrop-blur-md">
+                    #1 PLATAFORMA DE CONTINGÊNCIA TIKTOK
+                  </Badge>
+                  
+                  <motion.h1 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.8 }}
+                    className="text-4xl md:text-5xl font-black tracking-tight italic text-white mb-12 uppercase flex flex-wrap justify-center gap-x-4"
+                  >
+                    ESCALE 
+                    <div className="relative inline-block h-[1.2em] overflow-hidden min-w-[320px] md:min-w-[450px]">
+                      <AnimatePresence mode="wait">
+                        <motion.span
+                          key={headlineWordIndex}
+                          initial={{ y: 40, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          exit={{ y: -40, opacity: 0 }}
+                          transition={{ duration: 0.5, ease: "circOut" }}
+                          className="absolute inset-0 bg-gradient-to-r from-tiktok-red to-tiktok-cyan bg-clip-text text-transparent"
+                        >
+                          {headlineWords[headlineWordIndex]}
+                        </motion.span>
+                      </AnimatePresence>
+                    </div>
+                  </motion.h1>
+                  
+                  {/* VSL Section moved to hero fold */}
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4, duration: 0.8 }}
+                    className="relative max-w-4xl mx-auto aspect-video bg-white/5 rounded-[40px] border border-white/10 overflow-hidden group shadow-2xl"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
+                    <img 
+                      src="https://picsum.photos/seed/tech/1280/720" 
+                      alt="VSL Preview" 
+                      className="w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center z-20">
+                      <motion.button 
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="w-16 h-16 bg-tiktok-red rounded-full flex items-center justify-center shadow-lg cursor-pointer"
+                      >
+                        <PlayCircle className="w-8 h-8 text-white fill-current" />
+                      </motion.button>
+                    </div>
+                    <div className="absolute bottom-6 left-8 z-20 text-left">
+                      <h3 className="text-xl font-black italic tracking-tighter">ESTRATÉGIA DE ESCALA 2024</h3>
+                      <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Contingência de Elite para anúncios</p>
+                    </div>
+                  </motion.div>
+                </motion.div>
               </div>
-            </motion.div>
-          </div>
-          
-          {/* Background Decoration */}
-          <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-emerald-50/50 to-transparent -z-10" />
-          <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-100/30 rounded-full blur-3xl -z-10" />
-        </section>
-
-        {/* Stats / Trust */}
-        <section className="py-12 border-y border-slate-100 bg-slate-50/30">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              {[
-                { icon: Zap, label: "Entrega Instantânea", sub: "Após o PIX" },
-                { icon: ShieldCheck, label: "Garantia de 7 dias", sub: "Segurança total" },
-                { icon: Users, label: "Suporte VIP", sub: "24/7 disponível" },
-                { icon: CheckCircle2, label: "Contas Verificadas", sub: "Qualidade elite" },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center">
-                    <item.icon className="w-6 h-6 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-800">{item.label}</p>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">{item.sub}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+            </section>
 
         {/* Products Section */}
-        <section id="produtos" className="py-32">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
-              <div>
-                <h2 className="text-4xl font-bold text-slate-900 mb-4">Escolha seu pacote</h2>
-                <p className="text-slate-500 text-lg">Selecione a quantidade ideal para sua operação hoje.</p>
+        <section id="produtos" className="py-20 relative">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-tiktok-red/5 blur-[120px] rounded-full pointer-events-none" />
+          
+          <div className="max-w-7xl mx-auto px-6 relative z-10 text-white">
+            <div className="text-center mb-16 relative">
+              <Badge className="bg-tiktok-red/10 text-tiktok-red border-tiktok-red/20 mb-6 rounded-full px-6 py-1.5 uppercase tracking-widest text-[10px] font-black">
+                Packs de Elite
+              </Badge>
+              <div className="flex items-center justify-center gap-3">
+                <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter uppercase leading-none">ESCOLHA SEU ARSENAL</h2>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <button className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-tiktok-cyan transition-all">
+                      <Info className="w-4 h-4" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[400px] border-white/10 bg-black/95 text-white rounded-3xl p-8 shadow-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-black italic tracking-tighter uppercase mb-2">Metodologia de Escala</DialogTitle>
+                      <DialogDescription className="text-white/60 font-medium leading-relaxed">
+                        Nossas BC's são preparadas com protocolos de elite. Cada perfil vem com 30 contas de anúncio integradas, totalizando o arsenal descrito em cada pacote. <br/><br/>
+                        <span className="text-tiktok-cyan italic font-bold">Referência de custo (3 BCs):</span><br/>
+                        • Pack Inicial: R$ 180<br/>
+                        • Pack Escala: R$ 150 <br/>
+                        • Pack Industrial: R$ 140 
+                      </DialogDescription>
+                    </DialogHeader>
+                  </DialogContent>
+                </Dialog>
               </div>
-              <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-full">
-                <Badge variant="outline" className="bg-white border-none shadow-sm px-4 py-2 rounded-full text-sm font-semibold text-emerald-600">
-                  {availableAccountsCount} contas disponíveis
-                </Badge>
-              </div>
+              <p className="text-white/40 text-lg max-w-2xl mx-auto font-medium mt-6">
+                Selecione o volume ideal para sua operação. Entrega 100% automática.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {loading ? (
                 Array(3).fill(0).map((_, i) => (
-                  <Card key={i} className="rounded-3xl border-slate-100 overflow-hidden">
+                  <Card key={i} className="rounded-[44px] border-white/10 bg-white/5 overflow-hidden h-[600px]">
                     <CardHeader className="p-8">
-                      <Skeleton className="h-8 w-1/2 mb-4" />
-                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-8 w-1/2 mb-4 bg-white/10" />
+                      <Skeleton className="h-4 w-full bg-white/10" />
                     </CardHeader>
                     <CardContent className="p-8 pt-0">
-                      <Skeleton className="h-20 w-full mb-6" />
-                      <Skeleton className="h-12 w-full rounded-full" />
+                      <Skeleton className="h-20 w-full mb-6 bg-white/10" />
+                      <Skeleton className="h-12 w-full rounded-2xl bg-white/10" />
                     </CardContent>
                   </Card>
                 ))
@@ -607,394 +659,394 @@ export default function App() {
                     viewport={{ once: true }}
                     transition={{ delay: i * 0.1 }}
                   >
-                    <Card className={`rounded-[32px] border-slate-100 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-100/50 hover:-translate-y-2 group relative overflow-hidden ${i === 1 ? 'ring-2 ring-emerald-500 shadow-xl shadow-emerald-100' : ''}`}>
+                    <Card className={cn(
+                      "rounded-3xl border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all duration-500 hover:border-tiktok-red group relative overflow-hidden h-full flex flex-col text-white",
+                      i === 1 ? 'ring-1 ring-tiktok-red shadow-[0_0_80px_rgba(255,29,77,0.15)] bg-white/[0.05]' : 'hover:bg-white/[0.06]'
+                    )}>
                       {i === 1 && (
-                        <div className="absolute top-0 right-0 bg-emerald-500 text-white px-6 py-1.5 rounded-bl-2xl text-xs font-bold uppercase tracking-widest">
-                          Mais Popular
+                        <div className="absolute top-0 right-0 bg-tiktok-red text-white px-6 py-1.5 rounded-bl-2xl text-[9px] font-black uppercase tracking-[0.2em] z-20">
+                          Recomendado
                         </div>
                       )}
-                      <CardHeader className="p-10 pb-6">
-                        <CardTitle className="text-2xl font-bold text-slate-800 mb-2">{pkg.name}</CardTitle>
-                        <CardDescription className="text-slate-500 font-medium">
-                          {pkg.name === "Pacote 3" ? "Ideal para grandes operações" : (pkg.profiles === "1" ? "Ideal para iniciantes" : "Ideal para escala rápida")}
+                      
+                      <CardHeader className="p-8 pb-4">
+                        <CardTitle className="text-2xl font-black text-white italic tracking-tighter mb-1 group-hover:text-tiktok-red transition-all">
+                          {pkg.name}
+                        </CardTitle>
+                        <CardDescription className="text-white/30 font-bold tracking-widest text-[8px]">
+                          {pkg.name === "Pacote 3" ? "Volume Industrial" : (pkg.profiles === "1" ? "Entrada Estratégia" : "Escala Acelerada")}
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="p-10 pt-0">
-                        <div className="flex items-baseline gap-1 mb-8">
-                          <span className="text-4xl font-black text-slate-900">
-                            R$ {pkg.name === "Pacote 3" ? (quantity * 140).toLocaleString('pt-BR') : pkg.price}
-                          </span>
-                          <span className="text-slate-400 font-medium">/total</span>
+
+                      <CardContent className="p-8 pt-0 flex-grow">
+                        <div className="flex flex-col gap-1 mb-6">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-3xl font-black text-white italic tracking-tighter">
+                              R$ {pkg.name === "Pacote 3" ? (quantity * 140).toLocaleString('pt-BR') : pkg.price}
+                            </span>
+                            <span className="text-white/20 font-bold text-[8px] uppercase tracking-widest">/ único</span>
+                          </div>
+                          <p className="text-[10px] font-bold text-tiktok-cyan italic tracking-tight opacity-80">
+                            Equivalente a R$ {i === 0 ? "180" : i === 1 ? "150" : "140"} por 3 BC's
+                          </p>
                         </div>
                         
-                        {pkg.name === "Pacote 3" && (
-                          <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
-                              Quantidade de Perfis (mín. 5)
-                            </label>
-                            <div className="flex items-center gap-4">
+                        <div className="space-y-3 mb-8 text-xs">
+                          {[
+                            { text: pkg.name === "Pacote 3" ? `${quantity} BC's Completos` : `${pkg.profiles} BC's Completos`, icon: TrendingUp },
+                            { text: pkg.name === "Pacote 3" ? `${quantity * 90} Contas no total` : `${pkg.accounts} Contas no total`, icon: Users },
+                            { text: "Acesso Outlook + TikTok", icon: CheckCircle2 },
+                            { text: "Liberação Imediata", icon: Zap }
+                          ].map((feat, idx) => (
+                            <div key={idx} className="flex items-center gap-3 text-white/70">
+                              <div className="w-4 h-4 flex items-center justify-center">
+                                <feat.icon className="w-3.5 h-3.5 text-tiktok-cyan" />
+                              </div>
+                              <span className="text-sm font-bold tracking-tight">{feat.text}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {pkg.name === "Pacote 3" ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center bg-white/5 rounded-2xl border border-white/5 p-1 h-14">
                               <Button 
-                                variant="outline" 
+                                variant="ghost" 
                                 size="icon" 
-                                className="h-10 w-10 rounded-xl"
-                                onClick={() => setQuantity(Math.max(5, quantity - 1))}
+                                className="h-10 w-8 rounded-xl text-white hover:bg-white/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuantity(Math.max(5, quantity - 1));
+                                }}
                               >
                                 -
                               </Button>
-                              <span className="text-xl font-bold text-slate-800 w-8 text-center">{quantity}</span>
+                              <span className="text-lg font-black italic text-white w-8 text-center">{quantity}</span>
                               <Button 
-                                variant="outline" 
+                                variant="ghost" 
                                 size="icon" 
-                                className="h-10 w-10 rounded-xl"
-                                onClick={() => setQuantity(quantity + 1)}
+                                className="h-10 w-8 rounded-xl text-white hover:bg-white/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuantity(quantity + 1);
+                                }}
                               >
                                 +
                               </Button>
-                              <span className="text-xs text-slate-400 ml-auto">R$ 140 / perfil</span>
                             </div>
+                            <Button 
+                              onClick={() => handleBuy(pkg)}
+                              className={cn(
+                                "flex-1 h-14 rounded-2xl text-sm font-black italic tracking-tight transition-all uppercase",
+                                "bg-white text-black hover:bg-tiktok-cyan hover:text-black"
+                              )}
+                            >
+                              Comprar Agora
+                            </Button>
                           </div>
+                        ) : (
+                          <Button 
+                            onClick={() => handleBuy(pkg)}
+                            className={cn(
+                              "w-full h-14 rounded-2xl text-sm font-black italic tracking-tight transition-all uppercase",
+                              i === 1 
+                                ? "bg-tiktok-red hover:bg-tiktok-cyan hover:text-black text-white shadow-[0_0_20px_rgba(255,29,77,0.2)]" 
+                                : "bg-white text-black hover:bg-tiktok-cyan hover:text-black"
+                            )}
+                          >
+                            Comprar Agora
+                          </Button>
                         )}
-
-                        <div className="space-y-4 mb-10">
-                          <div className="flex items-center gap-3 text-slate-600">
-                            <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            </div>
-                            <span className="font-medium">
-                              {pkg.name === "Pacote 3" ? `${quantity} Perfis Completos` : `${pkg.profiles} Perfis Completos`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 text-slate-600">
-                            <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            </div>
-                            <span className="font-medium">
-                              {pkg.name === "Pacote 3" ? `${quantity * 90} Contas no total` : `${pkg.accounts} Contas no total`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 text-slate-600">
-                            <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            </div>
-                            <span className="font-medium">Acesso Outlook + TikTok</span>
-                          </div>
-                        </div>
-
-                        <Button 
-                          onClick={() => handleBuy(pkg)}
-                          className={`w-full h-14 rounded-2xl text-lg font-bold transition-all ${i === 1 ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-slate-900 hover:bg-slate-800 text-white'}`}
-                        >
-                          Comprar Agora
-                        </Button>
                       </CardContent>
                     </Card>
                   </motion.div>
                 ))
               ) : (
-                <div className="col-span-3 text-center py-20 text-slate-400">
-                  Nenhum pacote disponível no momento.
+                <div className="col-span-3 text-center py-20 text-white/20 font-bold uppercase tracking-widest italic">
+                  ARSENAL INDISPONÍVEL NO MOMENTO.
                 </div>
               )}
             </div>
           </div>
         </section>
 
-        {/* Security Section */}
-        <section id="seguranca" className="py-32 bg-slate-900 text-white overflow-hidden relative">
-          <div className="max-w-7xl mx-auto px-6 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-              <div>
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-none mb-6">Segurança Máxima</Badge>
-                <h2 className="text-5xl font-bold mb-8 leading-tight">Sua operação em boas mãos.</h2>
-                <div className="space-y-8">
-                  {[
-                    { title: "Criptografia de Ponta", desc: "Seus dados e acessos são protegidos com os mais altos padrões de segurança digital." },
-                    { title: "Verificação Manual", desc: "Cada conta passa por um processo rigoroso de validação antes de ser listada." },
-                    { title: "Entrega Automatizada", desc: "Sem espera. O sistema libera seus acessos no momento em que o PIX é confirmado." },
-                  ].map((item, i) => (
-                    <div key={i} className="flex gap-6">
-                      <div className="w-14 h-14 rounded-2xl bg-white/5 flex-shrink-0 flex items-center justify-center border border-white/10">
-                        <ShieldCheck className="w-8 h-8 text-emerald-500" />
-                      </div>
-                      <div>
-                        <h4 className="text-xl font-bold mb-2">{item.title}</h4>
-                        <p className="text-slate-400 leading-relaxed">{item.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="relative">
-                <div className="aspect-square bg-emerald-500/10 rounded-[64px] border border-emerald-500/20 flex items-center justify-center p-12">
-                  <div className="w-full h-full bg-slate-800 rounded-[48px] shadow-2xl border border-white/5 p-8 flex flex-col justify-between">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                          <Zap className="w-6 h-6 text-emerald-500" />
-                        </div>
-                        <span className="font-bold">Dominus System</span>
-                      </div>
-                      <Badge className="bg-emerald-500 text-white">Ativo</Badge>
-                    </div>
-                    <div className="space-y-4">
-                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          whileInView={{ width: "100%" }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          className="h-full bg-emerald-500" 
-                        />
-                      </div>
-                      <p className="text-xs text-slate-500 font-mono">SCANNING_ACCOUNTS_INTEGRITY...</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                        <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Status</p>
-                        <p className="text-emerald-400 font-bold">Protegido</p>
-                      </div>
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                        <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Uptime</p>
-                        <p className="text-white font-bold">99.9%</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Decorative circles */}
-                <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl" />
-                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-            {/* FAQ / Support */}
-            <section id="suporte" className="py-32 bg-white">
-              <div className="max-w-3xl mx-auto px-6 text-center">
-                <h2 className="text-4xl font-bold text-slate-900 mb-6">Ainda tem dúvidas?</h2>
-                <p className="text-slate-500 text-lg mb-12">Nossa equipe de especialistas está pronta para te ajudar a escalar sua operação.</p>
-                <a 
-                  href="https://wa.me/5500000000000" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "lg" }),
-                    "rounded-full px-10 h-14 border-slate-200 hover:bg-slate-50 text-slate-700 font-bold"
-                  )}
+        {/* Stats / Benefits Section */}
+        <section id="beneficios" className="py-16 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                { icon: Zap, label: "Entrega Instantânea", desc: "Receba seus acessos imediatamente após o PIX via Auto-Pix 24/7.", color: "tiktok-red" },
+                { icon: ShieldCheck, label: "Máxima Proteção", desc: "Contas verificadas com protocolos de elite para evitar bloqueios.", color: "tiktok-cyan" },
+                { icon: Users, label: "Suporte Especialista", desc: "Chat em tempo real com quem entende de escala industrial no TikTok.", color: "white" },
+              ].map((item, i) => (
+                <motion.div 
+                  key={i} 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  whileHover={{ 
+                    scale: 1.02,
+                    backgroundColor: "rgba(255,255,255,0.06)",
+                    borderColor: i === 0 ? "rgba(255,29,77,0.3)" : i === 1 ? "rgba(1,251,247,0.3)" : "rgba(255,255,255,0.2)"
+                  }}
+                  viewport={{ once: true }}
+                  transition={{ 
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 20
+                  }}
+                  className="bg-white/[0.03] border border-white/5 p-8 rounded-3xl transition-all group relative overflow-hidden"
                 >
-                  Falar com Suporte no WhatsApp
-                </a>
-              </div>
-            </section>
-          </>
-        ) : (
-          <div className="max-w-4xl mx-auto px-6 py-20 space-y-12">
-            <div className="space-y-4">
-              <h2 className="text-5xl font-black text-slate-900 tracking-tight">Meus Pedidos</h2>
-              <p className="text-lg text-slate-500 font-medium">Acompanhe suas compras e acesse suas contas entregues.</p>
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mb-6 group-hover:bg-white/10 transition-all">
+                      <item.icon className={cn("w-6 h-6", item.color === "tiktok-red" ? "text-tiktok-red" : item.color === "tiktok-cyan" ? "text-tiktok-cyan" : "text-white")} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-4 italic tracking-tight uppercase">{item.label}</h3>
+                    <p className="text-sm text-white/40 leading-relaxed font-medium">{item.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
             </div>
+          </div>
+        </section>
 
-            <div className="grid grid-cols-1 gap-6">
-              {orders.length > 0 ? (
-                orders.map((order) => (
-                  <motion.div
-                    key={order.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
-                    <Card className="overflow-hidden border-slate-100 hover:border-emerald-200 transition-all group">
-                      <div className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-8">
-                        <div className="flex items-center gap-6">
-                          <div className={`w-16 h-16 rounded-3xl flex items-center justify-center shrink-0 shadow-lg ${
-                            order.status === "paid" ? "bg-emerald-500 text-white shadow-emerald-500/20" : 
-                            order.status === "pending" ? "bg-amber-500 text-white shadow-amber-500/20" : "bg-slate-500 text-white"
-                          }`}>
-                            <ShoppingBag className="w-8 h-8" />
-                          </div>
-                          <div className="space-y-1">
-                            <h3 className="text-2xl font-black text-slate-900">{order.packageId}</h3>
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm text-slate-400 font-bold">
-                                {new Date(order.createdAt).toLocaleDateString("pt-BR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit"
-                                })}
-                              </span>
-                              <Badge className={`rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-widest border-none ${
-                                order.status === "paid" ? "bg-emerald-100 text-emerald-700" : 
-                                order.status === "pending" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"
-                              }`}>
-                                {order.status === "paid" ? "Pago" : order.status === "pending" ? "Pendente" : "Expirado"}
-                              </Badge>
-                            </div>
-                          </div>
+        {/* Security Section Removed as requested */}
+
+
+        {/* FAQ Section */}
+        <section id="suporte" className="py-16">
+          <div className="max-w-3xl mx-auto px-6 text-center text-white">
+            <h2 className="text-4xl font-black italic tracking-tighter mb-6 uppercase text-white">DIFÍCIL DE ACREDITAR?</h2>
+            <p className="text-white/40 text-base mb-10 font-bold uppercase tracking-widest">Nossa equipe de especialistas está pronta para te provar na prática.</p>
+            <a 
+              href="https://wa.me/5500000000000" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "rounded-full px-12 h-14 border-white/10 bg-white/5 hover:bg-tiktok-red hover:text-white hover:border-tiktok-red text-white font-black uppercase italic tracking-tighter transition-all"
+              )}
+            >
+              FALAR COM SUPORTE
+            </a>
+          </div>
+        </section>
+
+        {/* Floating Footer */}
+        <div className="px-6 pb-12">
+          <footer className="max-w-7xl mx-auto py-8 bg-white/[0.03] backdrop-blur-xl border border-white/5 rounded-3xl px-8 flex flex-col md:flex-row justify-between items-center gap-8">
+            <div className="flex items-center gap-4 grayscale opacity-30 hover:grayscale-0 hover:opacity-100 transition-all cursor-pointer">
+              <Zap className="text-white w-5 h-5 fill-current" />
+              <span className="text-base font-black italic tracking-tighter text-white">Tiktok<span className="text-white/40">Escale</span></span>
+            </div>
+            <p className="text-white/10 text-[9px] font-black uppercase tracking-[0.4em] text-center">
+              © 2024 TIKTOK ESCALE • PREMIUM BC'S ARSENAL
+            </p>
+            <div className="flex items-center gap-8 text-[9px] text-white/30 font-black tracking-widest uppercase">
+              <a href="#" className="hover:text-tiktok-red transition-all">Privacidade</a>
+              <a href="#" className="hover:text-tiktok-cyan transition-all">Termos</a>
+            </div>
+          </footer>
+        </div>
+      </>
+    ) : (
+      <div className="max-w-5xl mx-auto px-6 py-16 space-y-12 min-h-screen">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-white/10 pb-10">
+          <div className="space-y-3">
+             <Badge className="bg-tiktok-cyan/10 text-tiktok-cyan border-tiktok-cyan/20 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">Centro de Comando</Badge>
+             <h2 className="text-4xl font-black italic text-white tracking-tighter uppercase leading-none">Meus Pedidos</h2>
+             <p className="text-sm text-white/40 font-bold uppercase tracking-widest">Acompanhe e baixe suas BC's de escala</p>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => setView("home")}
+            className="rounded-full border-white/10 hover:border-tiktok-red h-12 px-8 font-black uppercase italic tracking-tighter text-sm transition-all"
+          >
+            <ArrowLeft className="mr-2 w-4 h-4" /> Voltar
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-8">
+          {orders.length > 0 ? (
+            orders.map((order) => (
+              <motion.div
+                key={order.id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <Card className="overflow-hidden border-white/5 bg-white/[0.03] backdrop-blur-xl hover:border-tiktok-red transition-all group rounded-3xl text-white p-1">
+                  <div className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-10">
+                    <div className="flex items-center gap-8">
+                      <div className={cn(
+                        "w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-2xl transition-all",
+                        order.status === "paid" ? "bg-tiktok-cyan text-black" : 
+                        order.status === "pending" ? "bg-tiktok-red text-white" : "bg-white/10 text-white/30"
+                      )}>
+                        <ShoppingBag className="w-8 h-8" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-4">
+                           <h3 className="text-2xl font-black italic text-white tracking-tighter uppercase leading-none">{order.packageId}</h3>
+                           <Badge className={cn(
+                             "rounded-full px-4 py-1.5 text-[9px] font-black uppercase tracking-widest border-none",
+                             order.status === "paid" ? "bg-tiktok-cyan/20 text-tiktok-cyan" : 
+                             order.status === "pending" ? "bg-tiktok-red/20 text-tiktok-red" : "bg-white/5 text-white/30"
+                           )}>
+                             {order.status === "paid" ? "LIBERADO" : order.status === "pending" ? "PENDENTE" : "EXPIRADO"}
+                           </Badge>
                         </div>
-
-                        <div className="flex flex-col md:items-end gap-3">
-                          <p className="text-3xl font-black text-slate-900 tracking-tight">R$ {order.amount.toFixed(2)}</p>
-                          {order.status === "paid" && order.accounts ? (
-                            <Button 
-                              size="sm"
-                              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl px-6"
-                              onClick={() => {
-                                const blob = new Blob([order.accounts], { type: 'text/plain' });
-                                const url = window.URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `contas-${order.id}.txt`;
-                                a.click();
-                              }}
-                            >
-                              <Download className="w-4 h-4 mr-2" /> Baixar Contas
-                            </Button>
-                          ) : order.status === "pending" ? (
-                            <Button 
-                              size="sm"
-                              variant="outline"
-                              className="border-amber-200 text-amber-600 hover:bg-amber-50 font-bold rounded-xl px-6"
-                              onClick={() => {
-                                setPixData({
-                                  pixCode: order.pixCode,
-                                  qrCode: "", 
-                                  isUrl: order.pixCode.startsWith("http")
-                                });
-                                setIsPixModalOpen(true);
-                              }}
-                            >
-                              Ver PIX
-                            </Button>
-                          ) : null}
+                        <div className="flex items-center gap-4 text-white/30 font-bold uppercase tracking-widest text-[9px]">
+                           <span>ID: {order.id.slice(0, 8)}</span>
+                           <span className="w-0.5 h-0.5 rounded-full bg-white/30" />
+                           <span>{new Date(order.createdAt).toLocaleDateString("pt-BR")}</span>
                         </div>
                       </div>
-                      
-                      {order.status === "paid" && order.accounts && (
-                        <div className="px-8 pb-8">
-                          <div className="bg-slate-50 rounded-[24px] p-6 border border-slate-100 space-y-4">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Suas Contas Entregues:</p>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-8 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(order.accounts);
-                                  toast.success("Contas copiadas!");
-                                }}
-                              >
-                                <Copy className="w-3 h-3 mr-1" /> Copiar Tudo
-                              </Button>
-                            </div>
-                            <pre className="text-sm font-mono text-slate-600 whitespace-pre-wrap break-all bg-white p-4 rounded-xl border border-slate-100">
-                              {order.accounts}
-                            </pre>
-                            <div className="flex items-center gap-2 text-emerald-600">
-                              <Check className="w-4 h-4" />
-                              <p className="text-xs font-bold">Contas validadas e prontas para uso.</p>
-                            </div>
-                          </div>
+                    </div>
+
+                    <div className="flex flex-col md:items-end gap-5">
+                      <p className="text-3xl font-black italic text-white tracking-tighter">R$ {order.amount.toFixed(2)}</p>
+                      {order.status === "paid" && order.accounts ? (
+                        <div className="flex gap-4">
+                           <Button 
+                            className="bg-white text-black hover:bg-tiktok-cyan font-black italic tracking-tighter uppercase rounded-full h-12 px-8 transition-all scale-100 hover:scale-105"
+                            onClick={() => {
+                              const blob = new Blob([order.accounts], { type: 'text/plain' });
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `tiktok-escale-bc-${order.id}.txt`;
+                              a.click();
+                            }}
+                          >
+                            <Download className="w-4 h-4 mr-2" /> Baixar BC's
+                          </Button>
                         </div>
-                      )}
-                    </Card>
-                  </motion.div>
-                ))
-              ) : (
-                <div className="text-center py-32 space-y-6 bg-slate-50 rounded-[40px] border border-dashed border-slate-200">
-                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto text-slate-300 shadow-sm">
-                    <ShoppingBag className="w-12 h-12" />
+                      ) : order.status === "pending" ? (
+                        <Button 
+                          className="bg-tiktok-red hover:bg-tiktok-red/90 text-white font-black italic tracking-tighter uppercase rounded-full h-12 px-10 transition-all shadow-[0_0_20px_rgba(255,29,77,0.3)]"
+                          onClick={() => {
+                            setPixData({
+                              pixCode: order.pixCode,
+                              qrCode: "", 
+                              isUrl: order.pixCode.startsWith("http")
+                            });
+                            setIsPixModalOpen(true);
+                          }}
+                        >
+                          Pagar Agora
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-2xl font-black text-slate-900">Nenhum pedido encontrado</p>
-                    <p className="text-slate-500 font-medium">Você ainda não realizou nenhuma compra em nossa plataforma.</p>
-                  </div>
-                  <Button 
-                    onClick={() => setView("home")}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-2xl px-10 h-14 shadow-lg shadow-emerald-500/20"
-                  >
-                    Explorar Planos
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </main>
-
-      <footer className="bg-slate-50 py-20 border-t border-slate-100">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-10">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-                <Zap className="text-white w-5 h-5 fill-current" />
+                  
+                  {order.status === "paid" && order.accounts && (
+                    <div className="px-8 pb-8">
+                      <div className="bg-black/60 rounded-[32px] p-6 border border-white/5 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">Acessos Entregues:</p>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 px-4 text-[9px] font-black uppercase tracking-widest text-tiktok-cyan hover:bg-tiktok-cyan/10 hover:text-tiktok-cyan rounded-lg transition-all"
+                            onClick={() => {
+                              navigator.clipboard.writeText(order.accounts);
+                              toast.success("Copiado!");
+                            }}
+                          >
+                            <Copy className="w-3.5 h-3.5 mr-2" /> Copiar
+                          </Button>
+                        </div>
+                        <pre className="text-xs font-mono text-white/60 whitespace-pre-wrap break-all bg-white/[0.02] p-6 rounded-[24px] border border-white/5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                          {order.accounts}
+                        </pre>
+                        <div className="flex items-center gap-3 text-tiktok-cyan/80">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <p className="text-[9px] font-black uppercase tracking-widest leading-none">BC's verificadas e prontas.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </motion.div>
+            ))
+          ) : (
+            <div className="text-center py-40 bg-white/[0.02] rounded-[60px] border border-dashed border-white/10 flex flex-col items-center gap-8">
+              <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center text-white/5">
+                <ShoppingBag className="w-12 h-12" />
               </div>
-              <span className="text-lg font-bold tracking-tight text-slate-800">Dominus<span className="text-emerald-500">Scale</span></span>
+              <div className="space-y-2">
+                <h3 className="text-3xl font-black italic text-white tracking-tighter uppercase leading-none">Sem Pedidos</h3>
+                <p className="text-white/20 font-bold uppercase tracking-widest text-[10px] italic">Você ainda não mobilizou o arsenal Tiktok Escale.</p>
+              </div>
+              <Button 
+                onClick={() => setView("home")}
+                className="bg-tiktok-red hover:bg-tiktok-red/90 text-white font-black italic tracking-tighter uppercase rounded-full px-12 h-14 shadow-[0_0_40px_rgba(255,29,77,0.3)] text-base"
+              >
+                VER PACOTES
+              </Button>
             </div>
-            <p className="text-slate-400 text-sm">
-              © 2024 DominusScale. Todos os direitos reservados.
-            </p>
-            <div className="flex items-center gap-6 text-slate-400 text-sm font-medium">
-              <a href="#" className="hover:text-emerald-500 transition-colors">Termos</a>
-              <a href="#" className="hover:text-emerald-500 transition-colors">Privacidade</a>
-            </div>
-          </div>
+          )}
         </div>
-      </footer>
+      </div>
+    )}
+  </main>
 
-      {/* PIX Modal */}
       <Dialog open={isPixModalOpen} onOpenChange={setIsPixModalOpen}>
-        <DialogContent className="sm:max-w-[450px] rounded-[32px] p-0 overflow-hidden border-none shadow-2xl">
-          <div className="bg-emerald-500 p-8 text-white">
+        <DialogContent className="sm:max-w-[440px] rounded-[32px] p-0 overflow-hidden border-white/10 bg-black shadow-[0_0_100px_rgba(0,0,0,1)]">
+          <div className="bg-gradient-to-br from-tiktok-red/10 to-black p-8 border-b border-white/5">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-white">Finalizar Pagamento</DialogTitle>
-              <DialogDescription className="text-emerald-100">
-                Escaneie o QR Code ou copie o código PIX abaixo.
+              <div className="w-12 h-12 bg-tiktok-red/20 rounded-xl flex items-center justify-center mb-4">
+                 <CreditCard className="text-tiktok-red w-6 h-6" />
+              </div>
+              <DialogTitle className="text-3xl font-black italic text-white tracking-tighter uppercase leading-none mb-1">Pagamento</DialogTitle>
+              <DialogDescription className="text-white/40 font-bold uppercase tracking-widest text-[8px]">
+                 CHECKOUT SEGURO • ANTI-BLOCK PROTOCOL
               </DialogDescription>
             </DialogHeader>
           </div>
           
-          <div className="p-8 max-h-[70vh] overflow-y-auto">
+          <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
             {!pixData ? (
               <div className="space-y-6">
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nome Completo</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">Nome Completo</label>
                     <input 
                       type="text" 
                       value={customerData.name}
                       onChange={(e) => setCustomerData({...customerData, name: e.target.value})}
-                      className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                      placeholder="Seu nome completo"
+                      className="w-full h-12 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red transition-all"
+                      placeholder="Nome do Comprador"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">E-mail</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">E-mail para Entrega</label>
                     <input 
                       type="email" 
                       value={customerData.email}
                       onChange={(e) => setCustomerData({...customerData, email: e.target.value})}
-                      className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                      placeholder="seu@email.com"
+                      className="w-full h-12 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red transition-all"
+                      placeholder="seu@contato.com"
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Telefone</label>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">Telefone</label>
                       <input 
                         type="text" 
                         value={customerData.phone}
                         onChange={(e) => setCustomerData({...customerData, phone: formatPhone(e.target.value)})}
-                        className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                        className="w-full h-12 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red transition-all"
                         placeholder="(00) 00000-0000"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">CPF</label>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">CPF / Tax ID</label>
                       <input 
                         type="text" 
                         value={customerData.taxId}
                         onChange={(e) => setCustomerData({...customerData, taxId: formatTaxId(e.target.value)})}
-                        className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                        className="w-full h-12 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red transition-all"
                         placeholder="000.000.000-00"
                       />
                     </div>
@@ -1003,69 +1055,63 @@ export default function App() {
                 <Button 
                   onClick={generatePix}
                   disabled={isGenerating}
-                  className="w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-bold shadow-lg shadow-emerald-500/20"
+                  className="w-full h-14 rounded-2xl bg-tiktok-red hover:bg-tiktok-red/90 text-white text-lg font-black italic tracking-tighter shadow-xl transition-all uppercase"
                 >
-                  {isGenerating ? "Gerando PIX..." : "Gerar Código PIX"}
+                  {isGenerating ? "GERANDO..." : "PAGAR AGORA"}
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-6">
-                <div className="relative">
-                  <div className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-10">
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-tiktok-red/20 blur-[40px] rounded-full scale-75 group-hover:scale-100 transition-transform" />
+                  <div className="bg-white p-6 rounded-[48px] shadow-2xl flex items-center justify-center relative z-10">
                     {pixData.qrCode ? (
-                      <img src={pixData.qrCode} alt="QR Code PIX" className="w-48 h-48 object-contain" />
+                      <img src={pixData.qrCode} alt="PIX" className="w-56 h-56" />
                     ) : (
-                      <div className="w-48 h-48 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 text-xs">
-                        QR Code Indisponível
-                      </div>
+                      <div className="w-56 h-56 flex items-center justify-center italic font-black text-black">Aguardando...</div>
                     )}
                   </div>
                 </div>
 
-                <div className="w-full space-y-4">
+                <div className="w-full space-y-6">
                   {pixData.isUrl || pixData.pixCode.startsWith("http") ? (
-                    <div className="space-y-4">
-                      <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 text-center">
-                        <p className="text-emerald-800 font-bold mb-2">Checkout Seguro Gerado</p>
-                        <p className="text-emerald-600 text-sm">Clique no botão abaixo para abrir a página de pagamento oficial da Abacate Pay e concluir seu PIX.</p>
+                    <div className="space-y-6">
+                      <div className="bg-white/5 p-8 rounded-[32px] border border-white/5 text-center">
+                        <p className="text-tiktok-cyan font-black italic text-xl mb-3">CHECKOUT GERADO</p>
+                        <p className="text-white/40 text-xs font-bold uppercase tracking-widest leading-relaxed">Pague no link oficial abaixo</p>
                       </div>
                       <Button 
-                        className="w-full h-16 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-xl font-black shadow-xl shadow-emerald-500/30 group"
+                        className="w-full h-20 rounded-[32px] bg-tiktok-red hover:bg-tiktok-red/90 text-white text-2xl font-black italic tracking-tighter shadow-2xl transition-all group"
                         onClick={() => window.open(pixData.pixCode, "_blank")}
                       >
-                        PAGAR AGORA <ArrowRight className="ml-2 w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                        ABRIR PAGAMENTO <ArrowRight className="ml-3 w-8 h-8 group-hover:translate-x-2 transition-transform" />
                       </Button>
-                      <p className="text-[10px] text-center text-slate-400 uppercase tracking-widest font-bold">
-                        Pagamento processado por Abacate Pay
-                      </p>
                     </div>
                   ) : (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
+                    <div className="bg-white/5 p-6 rounded-[24px] border border-white/5 flex items-center justify-between gap-6">
                       <div className="flex-1 overflow-hidden">
-                        <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Código PIX (Copia e Cola)</p>
-                        <p className="text-sm font-mono text-slate-600 truncate">
-                          {pixData.pixCode}
-                        </p>
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-black mb-1">CÓDIGO PIX COPIA E COLA</p>
+                        <p className="text-sm font-mono text-white/60 truncate italic">{pixData.pixCode}</p>
                       </div>
                       <Button 
                         size="icon" 
                         variant="ghost" 
-                        className="h-12 w-12 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 shrink-0"
+                        className="h-14 w-14 rounded-2xl bg-white/5 hover:bg-tiktok-cyan hover:text-black transition-all"
                         onClick={copyPixCode}
                       >
-                        <Copy className="w-5 h-5" />
+                        <Copy className="w-6 h-6" />
                       </Button>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                      <Zap className="w-5 h-5 text-blue-600 animate-pulse" />
+                  <div className="flex items-center gap-6 p-6 bg-tiktok-cyan/5 rounded-[32px] border border-tiktok-cyan/10">
+                    <div className="w-14 h-14 rounded-2xl bg-tiktok-cyan/10 flex items-center justify-center shrink-0">
+                      <Zap className="text-tiktok-cyan w-7 h-7 animate-pulse shadow-[0_0_10px_rgba(1,251,247,0.5)]" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs text-blue-700 font-bold mb-0.5">Aguardando pagamento...</p>
-                      <p className="text-[10px] text-blue-600 leading-relaxed">
-                        O sistema detectará o pagamento automaticamente e liberará suas contas em segundos.
+                      <p className="text-xs text-tiktok-cyan font-black italic tracking-tight uppercase">DETECÇÃO ATIVA</p>
+                      <p className="text-[10px] text-white/40 font-bold uppercase leading-relaxed mt-1">
+                        O sistema liberará suas contas automaticamente após o PIX.
                       </p>
                     </div>
                   </div>
@@ -1074,13 +1120,13 @@ export default function App() {
             )}
           </div>
           
-          <div className="p-8 pt-0">
+          <div className="p-10 pt-0">
             <Button 
-              variant="outline" 
-              className="w-full h-12 rounded-xl border-slate-200 text-slate-500"
+              variant="ghost" 
+              className="w-full h-12 rounded-xl text-white/20 hover:text-white"
               onClick={() => setIsPixModalOpen(false)}
             >
-              Fechar
+              FECHAR
             </Button>
           </div>
         </DialogContent>

@@ -600,13 +600,13 @@ export default function App() {
                  <DialogTrigger 
                    render={
                      <Button variant="ghost" className="p-0 h-9 w-9 rounded-full overflow-hidden border border-white/10">
-                       <img src={user.photoURL || ""} alt="User" className="w-full h-full object-cover" />
+                       <img src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.email || "U")}&background=FF1D4D&color=fff&bold=true`} alt="User" className="w-full h-full object-cover" />
                      </Button>
                    }
                  />
                  <DialogContent className="sm:max-w-[300px] border-white/10 bg-black/95 text-white">
                    <div className="flex flex-col items-center gap-4 py-4">
-                     <img src={user.photoURL || ""} alt="User" className="w-20 h-20 rounded-full border-2 border-tiktok-red" />
+                     <img src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.email || "U")}&background=FF1D4D&color=fff&bold=true`} alt="User" className="w-20 h-20 rounded-full border-2 border-tiktok-red object-cover shadow-[0_0_20px_rgba(255,29,77,0.3)]" />
                      <div className="text-center">
                        <p className="font-bold">{user.displayName || user.email?.split('@')[0]}</p>
                        <p className="text-sm text-white/50">{user.email}</p>
@@ -1305,8 +1305,8 @@ export default function App() {
                   )}
 
                   <div className="flex items-center gap-6 p-6 bg-tiktok-cyan/5 rounded-[32px] border border-tiktok-cyan/10">
-                    <div className="w-14 h-14 rounded-2xl bg-tiktok-cyan/10 flex items-center justify-center shrink-0">
-                      <Zap className="text-tiktok-cyan w-7 h-7 animate-pulse shadow-[0_0_10px_rgba(1,251,247,0.5)]" />
+                    <div className="w-14 h-14 rounded-2xl bg-tiktok-cyan/10 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(1,251,247,0.15)]">
+                      <Zap className="text-tiktok-cyan w-7 h-7 animate-pulse" />
                     </div>
                     <div className="flex-1">
                       <p className="text-xs text-tiktok-cyan font-black italic tracking-tight uppercase">DETECÇÃO ATIVA</p>

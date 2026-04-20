@@ -629,75 +629,75 @@ export default function App() {
     </div>
 
       <Dialog open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen}>
-        <DialogContent className="sm:max-w-[400px] bg-black/95 border-white/10 text-white rounded-[32px] p-8 overflow-hidden backdrop-blur-2xl">
+        <DialogContent className="sm:max-w-[400px] bg-black/95 border-white/10 text-white rounded-[24px] p-6 md:p-8 overflow-hidden backdrop-blur-2xl shadow-[0_0_100px_rgba(0,0,0,1)]">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-tiktok-red via-white to-tiktok-cyan" />
           
-          <DialogHeader className="space-y-4 text-center">
-            <DialogTitle className="text-3xl font-black italic tracking-tighter uppercase">
+          <DialogHeader className="space-y-2 text-center">
+            <DialogTitle className="text-2xl font-black italic tracking-tighter uppercase">
               {authMode === "login" ? "BEM-VINDO" : "CADASTRE-SE"}
             </DialogTitle>
-            <DialogDescription className="text-white/40 font-bold uppercase tracking-widest text-[10px]">
+            <DialogDescription className="text-white/40 font-bold uppercase tracking-widest text-[9px]">
               {authMode === "login" 
                 ? "Entre para mobilizar seu arsenal de escala." 
                 : "Crie sua conta para começar a escalar."}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleEmailAuth} className="space-y-6 mt-8">
+          <form onSubmit={handleEmailAuth} className="space-y-4 mt-6">
             {authMode === "register" && (
-              <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">NOME COMPLETO</p>
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-white/30 ml-2">NOME COMPLETO</p>
                 <input
                   type="text"
                   placeholder="Seu nome"
                   value={authName}
                   onChange={(e) => setAuthName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl h-14 px-6 text-sm focus:outline-none focus:border-tiktok-cyan transition-all font-medium placeholder:text-white/10"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl h-12 px-5 text-sm focus:outline-none focus:border-tiktok-cyan/50 transition-all font-medium placeholder:text-white/10"
                 />
               </div>
             )}
             
-            <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">E-MAIL</p>
+            <div className="space-y-1.5">
+              <p className="text-[9px] font-black uppercase tracking-widest text-white/30 ml-2">E-MAIL</p>
               <input
                 type="email"
                 placeholder="seu@email.com"
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl h-14 px-6 text-sm focus:outline-none focus:border-tiktok-cyan transition-all font-medium placeholder:text-white/10"
+                className="w-full bg-white/5 border border-white/10 rounded-xl h-12 px-5 text-sm focus:outline-none focus:border-tiktok-cyan/50 transition-all font-medium placeholder:text-white/10"
               />
             </div>
 
-            <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">SENHA</p>
+            <div className="space-y-1.5">
+              <p className="text-[9px] font-black uppercase tracking-widest text-white/30 ml-2">SENHA</p>
               <input
                 type="password"
                 placeholder="••••••••"
                 value={authPassword}
                 onChange={(e) => setAuthPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl h-14 px-6 text-sm focus:outline-none focus:border-tiktok-cyan transition-all font-medium placeholder:text-white/10"
+                className="w-full bg-white/5 border border-white/10 rounded-xl h-12 px-5 text-sm focus:outline-none focus:border-tiktok-cyan/50 transition-all font-medium placeholder:text-white/10"
               />
             </div>
 
             <Button 
               type="submit"
-              className="w-full h-14 rounded-2xl bg-white text-black font-black uppercase italic tracking-tighter hover:bg-tiktok-cyan transition-all text-base"
+              className="w-full h-12 rounded-xl bg-white text-black font-black uppercase italic tracking-tighter hover:bg-tiktok-cyan transition-all text-sm shadow-xl"
             >
               {authMode === "login" ? "ENTRAR AGORA" : "CRIAR CONTA"}
             </Button>
           </form>
 
-          <div className="relative my-8">
+          <div className="relative my-6">
             <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/5" /></div>
-            <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest"><span className="bg-black/95 px-4 text-white/20">OU CONTINUE COM</span></div>
+            <div className="relative flex justify-center text-[9px] uppercase font-black tracking-widest"><span className="bg-black/95 px-4 text-white/20">OU CONTINUE COM</span></div>
           </div>
 
           <Button 
             variant="outline"
             onClick={handleGoogleLogin}
-            className="w-full h-14 rounded-2xl border-white/5 bg-white/5 hover:bg-white/10 text-white font-black uppercase italic tracking-tighter flex items-center justify-center gap-3"
+            className="w-full h-12 rounded-xl border-white/5 bg-white/5 hover:bg-white/10 text-white font-black uppercase italic tracking-tighter flex items-center justify-center gap-3 text-xs"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
               <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
               <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
@@ -706,7 +706,7 @@ export default function App() {
             GOOGLE ACCOUNT
           </Button>
 
-          <p className="mt-8 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+          <p className="mt-6 text-center text-[9px] font-bold uppercase tracking-widest text-white/30">
             {authMode === "login" ? "NÃO TEM UMA CONTA?" : "JÁ TEM UMA CONTA?"}
             <button 
               onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
@@ -1192,61 +1192,61 @@ export default function App() {
   </main>
 
       <Dialog open={isPixModalOpen} onOpenChange={setIsPixModalOpen}>
-        <DialogContent className="sm:max-w-[440px] rounded-[32px] p-0 overflow-hidden border-white/10 bg-black shadow-[0_0_100px_rgba(0,0,0,1)]">
-          <div className="bg-gradient-to-br from-tiktok-red/10 to-black p-8 border-b border-white/5">
+        <DialogContent className="sm:max-w-[400px] rounded-[24px] p-0 overflow-hidden border-white/10 bg-black shadow-[0_0_100px_rgba(0,0,0,1)]">
+          <div className="bg-gradient-to-br from-tiktok-red/10 to-black p-6 border-b border-white/5">
             <DialogHeader>
-              <div className="w-12 h-12 bg-tiktok-red/20 rounded-xl flex items-center justify-center mb-4">
-                 <CreditCard className="text-tiktok-red w-6 h-6" />
+              <div className="w-10 h-10 bg-tiktok-red/20 rounded-xl flex items-center justify-center mb-3">
+                 <CreditCard className="text-tiktok-red w-5 h-5" />
               </div>
-              <DialogTitle className="text-3xl font-black italic text-white tracking-tighter uppercase leading-none mb-1">Pagamento</DialogTitle>
+              <DialogTitle className="text-2xl font-black italic text-white tracking-tighter uppercase leading-none mb-1">Pagamento</DialogTitle>
               <DialogDescription className="text-white/40 font-bold uppercase tracking-widest text-[8px]">
                  CHECKOUT SEGURO • ANTI-BLOCK PROTOCOL
               </DialogDescription>
             </DialogHeader>
           </div>
           
-          <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          <div className="p-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
             {!pixData ? (
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
+              <div className="space-y-5">
+                <div className="space-y-3">
+                  <div className="space-y-1">
                     <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">Nome Completo</label>
                     <input 
                       type="text" 
                       value={customerData.name}
                       onChange={(e) => setCustomerData({...customerData, name: e.target.value})}
-                      className="w-full h-12 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red transition-all"
+                      className="w-full h-11 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red/50 transition-all"
                       placeholder="Nome do Comprador"
                     />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">E-mail para Entrega</label>
                     <input 
                       type="email" 
                       value={customerData.email}
                       onChange={(e) => setCustomerData({...customerData, email: e.target.value})}
-                      className="w-full h-12 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red transition-all"
+                      className="w-full h-11 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red/50 transition-all"
                       placeholder="seu@contato.com"
                     />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
                       <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">Telefone</label>
                       <input 
                         type="text" 
                         value={customerData.phone}
                         onChange={(e) => setCustomerData({...customerData, phone: formatPhone(e.target.value)})}
-                        className="w-full h-12 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red transition-all"
+                        className="w-full h-11 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red/50 transition-all"
                         placeholder="(00) 00000-0000"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       <label className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">CPF / Tax ID</label>
                       <input 
                         type="text" 
                         value={customerData.taxId}
                         onChange={(e) => setCustomerData({...customerData, taxId: formatTaxId(e.target.value)})}
-                        className="w-full h-12 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red transition-all"
+                        className="w-full h-11 rounded-xl bg-white/5 border border-white/5 px-4 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tiktok-red/50 transition-all"
                         placeholder="000.000.000-00"
                       />
                     </div>
@@ -1255,63 +1255,63 @@ export default function App() {
                 <Button 
                   onClick={generatePix}
                   disabled={isGenerating}
-                  className="w-full h-14 rounded-2xl bg-tiktok-red hover:bg-tiktok-red/90 text-white text-lg font-black italic tracking-tighter shadow-xl transition-all uppercase"
+                  className="w-full h-12 rounded-xl bg-tiktok-red hover:bg-tiktok-red/90 text-white text-base font-black italic tracking-tighter shadow-xl transition-all uppercase"
                 >
                   {isGenerating ? "GERANDO..." : "PAGAR AGORA"}
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-10">
+              <div className="flex flex-col items-center gap-6">
                 <div className="relative group">
                   <div className="absolute inset-0 bg-tiktok-red/20 blur-[40px] rounded-full scale-75 group-hover:scale-100 transition-transform" />
-                  <div className="bg-white p-6 rounded-[48px] shadow-2xl flex items-center justify-center relative z-10">
+                  <div className="bg-white p-4 rounded-[24px] shadow-2xl flex items-center justify-center relative z-10">
                     {pixData.qrCode ? (
-                      <img src={pixData.qrCode} alt="PIX" className="w-56 h-56" />
+                      <img src={pixData.qrCode} alt="PIX" className="w-48 h-48" />
                     ) : (
-                      <div className="w-56 h-56 flex items-center justify-center italic font-black text-black">Aguardando...</div>
+                      <div className="w-48 h-48 flex items-center justify-center italic font-black text-black">Aguardando...</div>
                     )}
                   </div>
                 </div>
 
-                <div className="w-full space-y-6">
+                <div className="w-full space-y-4">
                   {pixData.isUrl || pixData.pixCode.startsWith("http") ? (
-                    <div className="space-y-6">
-                      <div className="bg-white/5 p-8 rounded-[32px] border border-white/5 text-center">
-                        <p className="text-tiktok-cyan font-black italic text-xl mb-3">CHECKOUT GERADO</p>
-                        <p className="text-white/40 text-xs font-bold uppercase tracking-widest leading-relaxed">Pague no link oficial abaixo</p>
+                    <div className="space-y-4">
+                      <div className="bg-white/5 p-6 rounded-[24px] border border-white/5 text-center">
+                        <p className="text-tiktok-cyan font-black italic text-lg mb-2 tracking-tight">LINK DE CHECKOUT</p>
+                        <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest leading-relaxed">Pague agora no link oficial</p>
                       </div>
                       <Button 
-                        className="w-full h-20 rounded-[32px] bg-tiktok-red hover:bg-tiktok-red/90 text-white text-2xl font-black italic tracking-tighter shadow-2xl transition-all group"
+                        className="w-full h-16 rounded-[24px] bg-tiktok-red hover:bg-tiktok-red/90 text-white text-xl font-black italic tracking-tighter shadow-2xl transition-all group"
                         onClick={() => window.open(pixData.pixCode, "_blank")}
                       >
-                        ABRIR PAGAMENTO <ArrowRight className="ml-3 w-8 h-8 group-hover:translate-x-2 transition-transform" />
+                        ABRIR PAGAMENTO <ArrowRight className="ml-3 w-6 h-6 group-hover:translate-x-2 transition-transform" />
                       </Button>
                     </div>
                   ) : (
-                    <div className="bg-white/5 p-6 rounded-[24px] border border-white/5 flex items-center justify-between gap-6">
+                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between gap-4">
                       <div className="flex-1 overflow-hidden">
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-black mb-1">CÓDIGO PIX COPIA E COLA</p>
-                        <p className="text-sm font-mono text-white/60 truncate italic">{pixData.pixCode}</p>
+                        <p className="text-[9px] uppercase tracking-[0.3em] text-white/30 font-black mb-1">PIX COPIA E COLA</p>
+                        <p className="text-xs font-mono text-white/60 truncate italic">{pixData.pixCode}</p>
                       </div>
                       <Button 
                         size="icon" 
                         variant="ghost" 
-                        className="h-14 w-14 rounded-2xl bg-white/5 hover:bg-tiktok-cyan hover:text-black transition-all"
+                        className="h-10 w-10 rounded-xl bg-white/5 hover:bg-tiktok-cyan hover:text-black transition-all"
                         onClick={copyPixCode}
                       >
-                        <Copy className="w-6 h-6" />
+                        <Copy className="w-4 h-4" />
                       </Button>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-6 p-6 bg-tiktok-cyan/5 rounded-[32px] border border-tiktok-cyan/10">
-                    <div className="w-14 h-14 rounded-2xl bg-tiktok-cyan/10 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(1,251,247,0.15)]">
-                      <Zap className="text-tiktok-cyan w-7 h-7 animate-pulse" />
+                  <div className="flex items-center gap-4 p-4 bg-tiktok-cyan/5 rounded-2xl border border-tiktok-cyan/10">
+                    <div className="w-10 h-10 rounded-xl bg-tiktok-cyan/10 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(1,251,247,0.15)]">
+                      <Zap className="text-tiktok-cyan w-5 h-5 animate-pulse" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs text-tiktok-cyan font-black italic tracking-tight uppercase">DETECÇÃO ATIVA</p>
-                      <p className="text-[10px] text-white/40 font-bold uppercase leading-relaxed mt-1">
-                        O sistema liberará suas contas automaticamente após o PIX.
+                      <p className="text-[10px] text-tiktok-cyan font-black italic tracking-tight uppercase">DETECÇÃO ATIVA</p>
+                      <p className="text-[9px] text-white/40 font-bold uppercase leading-tight mt-0.5">
+                        Liberaremos suas contas automaticamente após o PIX.
                       </p>
                     </div>
                   </div>
@@ -1320,10 +1320,10 @@ export default function App() {
             )}
           </div>
           
-          <div className="p-10 pt-0">
+          <div className="p-6 pt-0">
             <Button 
               variant="ghost" 
-              className="w-full h-12 rounded-xl text-white/20 hover:text-white"
+              className="w-full h-10 rounded-xl text-white/20 hover:text-white text-xs font-extrabold uppercase tracking-widest"
               onClick={() => setIsPixModalOpen(false)}
             >
               FECHAR

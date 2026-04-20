@@ -718,7 +718,7 @@ export default function App() {
         </DialogContent>
       </Dialog>
 
-      <main className="pt-2 md:pt-20">
+      <main className="pt-20 md:pt-20">
         {view === "home" ? (
           <>
             {/* Elite Hero Section */}

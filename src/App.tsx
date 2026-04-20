@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, ReactNode, useRef } from "react";
+import { useState, useEffect, useMemo, ReactNode, useRef, FormEvent } from "react";
 import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QRCode from "qrcode";
-import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, db, doc, setDoc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy } from "./firebase";
+import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, db, doc, setDoc, getDoc, updateDoc, collection, query, where, onSnapshot, orderBy } from "./firebase";
 import { User } from "firebase/auth";
 
 interface PackageData {
@@ -119,6 +119,11 @@ export default function App() {
   const [view, setView] = useState<"home" | "orders">("home");
   const [orders, setOrders] = useState<any[]>([]);
   const [isSuccessPage, setIsSuccessPage] = useState(window.location.pathname === "/success");
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authName, setAuthName] = useState("");
   const [customerData, setCustomerData] = useState({
     name: "",
     email: "",
@@ -258,20 +263,49 @@ export default function App() {
   }, []);
 
   const handleLogin = async () => {
+    setIsAuthModalOpen(true);
+  };
+
+  const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
       toast.success("Login realizado com sucesso!");
+      setIsAuthModalOpen(false);
     } catch (error: any) {
       console.error("Login error:", error);
-      let errorMessage = `Erro ao fazer login: ${error.message}`;
-      
-      if (error.code === 'auth/unauthorized-domain') {
-        errorMessage = "Domínio não autorizado no Firebase. Adicione tiktok-escale.vercel.app no console do Firebase.";
-      } else if (error.code === 'auth/network-request-failed' || error.message.includes('network-request-failed')) {
-        errorMessage = "Conexão falhou. Verifique sua internet ou se há algum bloqueador de anúncios (AdBlock) ativo.";
+      toast.error("Erro ao fazer login com Google.");
+    }
+  };
+
+  const handleEmailAuth = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!authEmail || !authPassword) {
+      toast.error("Preencha todos os campos.");
+      return;
+    }
+
+    try {
+      if (authMode === "login") {
+        await signInWithEmailAndPassword(auth, authEmail, authPassword);
+        toast.success("Bem-vindo de volta!");
+      } else {
+        if (!authName) {
+          toast.error("Informe seu nome.");
+          return;
+        }
+        const userCredential = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+        await updateProfile(userCredential.user, { displayName: authName });
+        toast.success("Conta criada com sucesso!");
       }
-      
-      toast.error(errorMessage, { duration: 6000 });
+      setIsAuthModalOpen(false);
+      setAuthPassword("");
+    } catch (error: any) {
+      console.error("Auth error:", error);
+      let msg = "Erro na autenticação.";
+      if (error.code === "auth/email-already-in-use") msg = "Este e-mail já está em uso.";
+      if (error.code === "auth/invalid-credential") msg = "E-mail ou senha incorretos.";
+      if (error.code === "auth/weak-password") msg = "A senha deve ter pelo menos 6 caracteres.";
+      toast.error(msg);
     }
   };
 
@@ -574,7 +608,7 @@ export default function App() {
                    <div className="flex flex-col items-center gap-4 py-4">
                      <img src={user.photoURL || ""} alt="User" className="w-20 h-20 rounded-full border-2 border-tiktok-red" />
                      <div className="text-center">
-                       <p className="font-bold">{user.displayName}</p>
+                       <p className="font-bold">{user.displayName || user.email?.split('@')[0]}</p>
                        <p className="text-sm text-white/50">{user.email}</p>
                      </div>
                      <Button variant="destructive" className="w-full bg-tiktok-red text-white font-normal hover:bg-tiktok-red/90" onClick={handleLogout}>
@@ -586,13 +620,103 @@ export default function App() {
              </div>
             ) : (
               <Button onClick={handleLogin} className="rounded-full bg-white text-black font-black hover:bg-tiktok-cyan transition-all h-10 px-6">
-                CONTATO
+                ENTRAR
               </Button>
             )}
           </div>
         </div>
       </motion.nav>
     </div>
+
+      <Dialog open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen}>
+        <DialogContent className="sm:max-w-[400px] bg-black/95 border-white/10 text-white rounded-[32px] p-8 overflow-hidden backdrop-blur-2xl">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-tiktok-red via-white to-tiktok-cyan" />
+          
+          <DialogHeader className="space-y-4 text-center">
+            <DialogTitle className="text-3xl font-black italic tracking-tighter uppercase">
+              {authMode === "login" ? "BEM-VINDO" : "CADASTRE-SE"}
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-bold uppercase tracking-widest text-[10px]">
+              {authMode === "login" 
+                ? "Entre para mobilizar seu arsenal de escala." 
+                : "Crie sua conta para começar a escalar."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEmailAuth} className="space-y-6 mt-8">
+            {authMode === "register" && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">NOME COMPLETO</p>
+                <input
+                  type="text"
+                  placeholder="Seu nome"
+                  value={authName}
+                  onChange={(e) => setAuthName(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl h-14 px-6 text-sm focus:outline-none focus:border-tiktok-cyan transition-all font-medium placeholder:text-white/10"
+                />
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">E-MAIL</p>
+              <input
+                type="email"
+                placeholder="seu@email.com"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl h-14 px-6 text-sm focus:outline-none focus:border-tiktok-cyan transition-all font-medium placeholder:text-white/10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">SENHA</p>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl h-14 px-6 text-sm focus:outline-none focus:border-tiktok-cyan transition-all font-medium placeholder:text-white/10"
+              />
+            </div>
+
+            <Button 
+              type="submit"
+              className="w-full h-14 rounded-2xl bg-white text-black font-black uppercase italic tracking-tighter hover:bg-tiktok-cyan transition-all text-base"
+            >
+              {authMode === "login" ? "ENTRAR AGORA" : "CRIAR CONTA"}
+            </Button>
+          </form>
+
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/5" /></div>
+            <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest"><span className="bg-black/95 px-4 text-white/20">OU CONTINUE COM</span></div>
+          </div>
+
+          <Button 
+            variant="outline"
+            onClick={handleGoogleLogin}
+            className="w-full h-14 rounded-2xl border-white/5 bg-white/5 hover:bg-white/10 text-white font-black uppercase italic tracking-tighter flex items-center justify-center gap-3"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+            </svg>
+            GOOGLE ACCOUNT
+          </Button>
+
+          <p className="mt-8 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+            {authMode === "login" ? "NÃO TEM UMA CONTA?" : "JÁ TEM UMA CONTA?"}
+            <button 
+              onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
+              className="ml-2 text-tiktok-cyan hover:underline underline-offset-4"
+            >
+              {authMode === "login" ? "CADASTRE-SE" : "FAÇA LOGIN"}
+            </button>
+          </p>
+        </DialogContent>
+      </Dialog>
 
       <main className="pt-2 md:pt-20">
         {view === "home" ? (

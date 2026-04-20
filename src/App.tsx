@@ -577,8 +577,8 @@ export default function App() {
                        <p className="font-bold">{user.displayName}</p>
                        <p className="text-sm text-white/50">{user.email}</p>
                      </div>
-                     <Button variant="destructive" className="w-full bg-tiktok-red" onClick={handleLogout}>
-                       <LogOut className="w-4 h-4 mr-2" /> <span className="text-white font-black italic">Sair</span>
+                     <Button variant="destructive" className="w-full bg-tiktok-red text-white font-normal hover:bg-tiktok-red/90" onClick={handleLogout}>
+                       <LogOut className="w-4 h-4 mr-2" /> Sair
                      </Button>
                    </div>
                  </DialogContent>
@@ -594,11 +594,11 @@ export default function App() {
       </motion.nav>
     </div>
 
-      <main className="pt-10 md:pt-20">
+      <main className="pt-2 md:pt-20">
         {view === "home" ? (
           <>
             {/* Elite Hero Section */}
-            <section className="relative md:min-h-[90vh] min-h-[50vh] flex items-start md:items-center justify-center overflow-hidden px-4 md:px-6 pt-20 md:pt-0">
+            <section className="relative md:min-h-[90vh] min-h-[50vh] flex items-start md:items-center justify-center overflow-hidden px-4 md:px-6 pt-16 md:pt-0">
               {/* Background Accents */}
               <div className="absolute top-1/4 left-1/4 w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-tiktok-red/20 blur-[100px] md:blur-[120px] rounded-full animate-pulse" />
               <div className="absolute bottom-1/4 right-1/4 w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-tiktok-cyan/10 blur-[100px] md:blur-[120px] rounded-full animate-pulse delay-1000" />
